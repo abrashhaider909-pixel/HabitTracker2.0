@@ -1,0 +1,6 @@
+{
+  "name": "HabitPulse SaaS",
+  "description": "All-in-one Habit Tracker & Life OS with Daily Routines, Finance Tracking, 5D AI Life Evaluation, and SWE Career Progression.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
