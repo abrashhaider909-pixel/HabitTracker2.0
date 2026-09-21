@@ -15,7 +15,7 @@ import {
    Database
  } from 'lucide-react';
  import { AuthUser, SupabaseConfig } from '../types';
- import { signIn, signUp } from '../lib/auth';
+ import { signIn, signUp, signInWithGoogle } from '../lib/auth';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -297,6 +297,41 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
         </form>
 
+
+        {mode === 'signin' && (
+          <div className="px-6 pb-4">
+            <div className="relative my-3">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-800" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-slate-900 px-3 text-slate-500">OR</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={loading}
+              onClick={async () => {
+                setError(null);
+                setSuccessMsg(null);
+                setLoading(true);
+
+                const result = await signInWithGoogle();
+
+                if (!result.success) {
+                  setError(result.message || 'Google sign-in failed.');
+                  setLoading(false);
+                }
+              }}
+              className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-900 text-sm font-semibold transition-all flex items-center justify-center gap-2"
+            >
+              <span className="font-bold text-base">G</span>
+              <span>Continue with Google</span>
+            </button>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-800/80 bg-slate-950/40 text-center text-xs text-slate-400">
           {currentUser && !currentUser.isGuest ? (
@@ -309,3 +344,4 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     </div>
   );
 };
+

@@ -142,6 +142,41 @@ export async function signIn(email: string, password: string): Promise<{ success
   }
 }
 
+
+// Sign In with Google OAuth
+export async function signInWithGoogle(): Promise<{ success: boolean; message?: string }> {
+  const client = getSupabaseClient();
+
+  if (!client) {
+    return {
+      success: false,
+      message: 'Supabase is not connected. Please configure Supabase first.',
+    };
+  }
+
+  try {
+    const { error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+
+    if (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'Google authentication failed.',
+    };
+  }
+}
 // Sign Up with email and password
 export async function signUp(email: string, password: string, name?: string): Promise<{ success: boolean; user?: AuthUser; message?: string }> {
   if (!email || !password) {
@@ -274,3 +309,4 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void): ()
   window.addEventListener('storage', handler);
   return () => window.removeEventListener('storage', handler);
 }
+

@@ -37,6 +37,7 @@ import {
   saveLocalCareerMilestones, 
   getSavedSupabaseConfig, 
   saveSupabaseConfig,
+  fetchRemoteUserData,
   syncAllToSupabase
 } from './lib/supabase';
 import { 
@@ -124,22 +125,84 @@ export default function App() {
 
   // Reload user data when active user account changes
   useEffect(() => {
-    const userId = user?.id;
-    const loadedHabits = getLocalHabits(INITIAL_HABITS, userId);
-    const loadedTransactions = getLocalTransactions(INITIAL_TRANSACTIONS, userId);
-    const today = getTodayISO();
-    const loadedEvals = getLocalEvaluations({ [today]: INITIAL_EVALUATION }, userId);
-    if (!loadedEvals[today]) {
-      loadedEvals[today] = { ...INITIAL_EVALUATION, date: today };
-    }
-    const loadedMilestones = getLocalCareerMilestones(INITIAL_CAREER_MILESTONES, userId);
+    let cancelled = false;
 
-    setHabits(loadedHabits);
-    setTransactions(loadedTransactions);
-    setEvaluations(loadedEvals);
-    setCareerMilestones(loadedMilestones);
+    const loadUserData = async () => {
+      const userId = user?.id;
+
+      console.log("HABITPULSE DEBUG - App user:", {
+        id: user?.id,
+        email: user?.email,
+        isGuest: user?.isGuest
+      });
+
+      // Load local data first
+      const loadedHabits = getLocalHabits(INITIAL_HABITS, userId);
+      const loadedTransactions = getLocalTransactions(INITIAL_TRANSACTIONS, userId);
+
+      const today = getTodayISO();
+      const loadedEvals = getLocalEvaluations(
+        { [today]: INITIAL_EVALUATION },
+        userId
+      );
+
+      if (!loadedEvals[today]) {
+        loadedEvals[today] = {
+          ...INITIAL_EVALUATION,
+          date: today,
+        };
+      }
+
+      const loadedMilestones = getLocalCareerMilestones(
+        INITIAL_CAREER_MILESTONES,
+        userId
+      );
+
+      if (cancelled) return;
+
+      setHabits(loadedHabits);
+      setTransactions(loadedTransactions);
+      setEvaluations(loadedEvals);
+      setCareerMilestones(loadedMilestones);
+
+      // Load cloud data for logged-in users
+      if (userId) {
+        try {
+          const remote = await fetchRemoteUserData(userId);
+
+          if (cancelled) return;
+
+          if (remote.error) {
+            console.error('Failed to load Supabase data:', remote.error);
+            return;
+          }
+
+          if (remote.habits) {
+            setHabits(remote.habits);
+            saveLocalHabits(remote.habits, userId);
+          }
+
+          if (remote.transactions) {
+            setTransactions(remote.transactions);
+            saveLocalTransactions(remote.transactions, userId);
+          }
+
+          console.log('Supabase data loaded successfully:', {
+            habits: remote.habits?.length ?? 0,
+            transactions: remote.transactions?.length ?? 0,
+          });
+        } catch (error) {
+          console.error('Error loading Supabase data:', error);
+        }
+      }
+    };
+
+    loadUserData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
-
   // Sync to local storage scoped to user
   useEffect(() => {
     saveLocalHabits(habits, user?.id);
@@ -530,6 +593,8 @@ export default function App() {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         currentUser={user}
+        supabaseConfig={supabaseConfig}
+        onOpenSupabaseConfig={() => setIsSupabaseModalOpen(true)}
         onAuthSuccess={(authUser) => {
           setUser(authUser);
           showToast(`Welcome, ${authUser.displayName || authUser.email}!`);
@@ -578,3 +643,7 @@ export default function App() {
     </div>
   );
 }
+
+
+
+

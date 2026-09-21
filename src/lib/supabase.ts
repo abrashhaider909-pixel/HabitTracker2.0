@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+﻿import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Habit, Transaction, CareerMilestone, AIEvaluationResult, SupabaseConfig } from '../types';
 
 const STORAGE_KEY_CONFIG = 'habitpulse_supabase_config';
@@ -189,8 +189,8 @@ export async function fetchRemoteUserData(userId: string): Promise<{
 
   try {
     const [habitsRes, txRes] = await Promise.all([
-      client.from('habits').select('*').order('created_at', { ascending: true }),
-      client.from('transactions').select('*').order('date', { ascending: false }),
+      client.from('habits').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
+      client.from('transactions').select('*').eq('user_id', userId).order('date', { ascending: false }),
     ]);
 
     const result: { habits?: Habit[]; transactions?: Transaction[] } = {};
@@ -286,3 +286,4 @@ export async function syncAllToSupabase(
     return { success: false, message: err.message || 'Sync failed' };
   }
 }
+
