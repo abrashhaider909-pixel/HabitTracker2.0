@@ -1,4 +1,4 @@
-﻿import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Habit, Transaction, CareerMilestone, AIEvaluationResult, SupabaseConfig } from '../types';
 
 const STORAGE_KEY_CONFIG = 'habitpulse_supabase_config';
@@ -231,6 +231,52 @@ export async function fetchRemoteUserData(userId: string): Promise<{
   }
 }
 
+
+export async function deleteHabitFromSupabase(
+  habitId: string,
+  userId: string
+): Promise<{ success: boolean; message: string }> {
+  const client = getSupabaseClient();
+
+  if (!client) {
+    return {
+      success: false,
+      message: 'Supabase client is not configured.',
+    };
+  }
+
+  if (!habitId || !userId) {
+    return {
+      success: false,
+      message: 'Habit ID and user ID are required.',
+    };
+  }
+
+  try {
+    const { error } = await client
+      .from('habits')
+      .delete()
+      .eq('id', habitId)
+      .eq('user_id', userId);
+
+    if (error) {
+      return {
+        success: false,
+        message: `Habit deletion failed: ${error.message}`,
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Habit deleted from Supabase.',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'Habit deletion failed.',
+    };
+  }
+}
 // Sync all data to remote Supabase if connected
 export async function syncAllToSupabase(
   habits: Habit[],
@@ -286,4 +332,5 @@ export async function syncAllToSupabase(
     return { success: false, message: err.message || 'Sync failed' };
   }
 }
+
 

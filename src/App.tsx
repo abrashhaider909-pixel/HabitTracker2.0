@@ -38,6 +38,7 @@ import {
   getSavedSupabaseConfig, 
   saveSupabaseConfig,
   fetchRemoteUserData,
+  deleteHabitFromSupabase,
   syncAllToSupabase
 } from './lib/supabase';
 import { 
@@ -290,10 +291,23 @@ export default function App() {
     showToast(`Logged status for ${date}`);
   }, []);
 
-  const handleDeleteHabit = useCallback((habitId: string) => {
+  const handleDeleteHabit = useCallback(async (habitId: string) => {
     setHabits((prev) => prev.filter((h) => h.id !== habitId));
+
+    const currentUserId = user?.id;
+
+    if (currentUserId) {
+      const result = await deleteHabitFromSupabase(habitId, currentUserId);
+
+      if (!result.success) {
+        console.error('Failed to delete habit from Supabase:', result.message);
+        showToast('Habit removed locally, but Supabase deletion failed.', 'error');
+        return;
+      }
+    }
+
     showToast('Habit deleted', 'info');
-  }, []);
+  }, [user?.id]);
 
   const handleSaveHabit = useCallback((habitData: Partial<Habit>) => {
     if (editingHabit) {
@@ -643,6 +657,9 @@ export default function App() {
     </div>
   );
 }
+
+
+
 
 
 
