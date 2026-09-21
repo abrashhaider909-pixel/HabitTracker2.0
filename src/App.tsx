@@ -39,6 +39,7 @@ import {
   saveSupabaseConfig,
   fetchRemoteUserData,
   deleteHabitFromSupabase,
+  deleteTransactionFromSupabase,
   syncAllToSupabase
 } from './lib/supabase';
 import { 
@@ -347,10 +348,23 @@ export default function App() {
     showToast(`Logged $${newTx.amount} ${newTx.type}`);
   }, []);
 
-  const handleDeleteTransaction = useCallback((id: string) => {
+  const handleDeleteTransaction = useCallback(async (id: string) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
-    showToast('Transaction removed', 'info');
-  }, []);
+
+    const currentUserId = user?.id;
+
+    if (currentUserId) {
+      const result = await deleteTransactionFromSupabase(id, currentUserId);
+
+      if (!result.success) {
+        console.error('Failed to delete transaction from Supabase:', result.message);
+        showToast('Transaction removed locally, but Supabase deletion failed.', 'error');
+        return;
+      }
+    }
+
+    showToast('Transaction deleted', 'info');
+  }, [user?.id]);
 
   // Career Milestone Handlers
   const handleToggleMilestone = useCallback((id: string) => {
@@ -657,6 +671,8 @@ export default function App() {
     </div>
   );
 }
+
+
 
 
 

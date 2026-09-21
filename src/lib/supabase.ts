@@ -278,6 +278,52 @@ export async function deleteHabitFromSupabase(
   }
 }
 // Sync all data to remote Supabase if connected
+
+export async function deleteTransactionFromSupabase(
+  transactionId: string,
+  userId: string
+): Promise<{ success: boolean; message: string }> {
+  const client = getSupabaseClient();
+
+  if (!client) {
+    return {
+      success: false,
+      message: 'Supabase client is not configured.',
+    };
+  }
+
+  if (!transactionId || !userId) {
+    return {
+      success: false,
+      message: 'Transaction ID and user ID are required.',
+    };
+  }
+
+  try {
+    const { error } = await client
+      .from('transactions')
+      .delete()
+      .eq('id', transactionId)
+      .eq('user_id', userId);
+
+    if (error) {
+      return {
+        success: false,
+        message: `Transaction deletion failed: ${error.message}`,
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Transaction deleted from Supabase.',
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'Transaction deletion failed.',
+    };
+  }
+}
 export async function syncAllToSupabase(
   habits: Habit[],
   transactions: Transaction[],
@@ -332,5 +378,6 @@ export async function syncAllToSupabase(
     return { success: false, message: err.message || 'Sync failed' };
   }
 }
+
 
 
