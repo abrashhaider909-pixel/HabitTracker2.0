@@ -4,8 +4,15 @@ import { AuthUser } from '../types';
 const STORAGE_KEY_AUTH_USER = 'habitpulse_auth_user_v1';
 const STORAGE_KEY_LOCAL_USERS = 'habitpulse_registered_users_v1';
 
+export const DEFAULT_GUEST_USER: AuthUser = {
+  id: 'guest-demo-user',
+  email: 'abrashhaider909@gmail.com',
+  displayName: 'Abrash Haider',
+  isGuest: true,
+};
+
 // Retrieve active authenticated user from localStorage or Supabase
-export function getSavedAuthUser(): AuthUser | null {
+export function getSavedAuthUser(): AuthUser {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_AUTH_USER);
     if (raw) {
@@ -14,7 +21,7 @@ export function getSavedAuthUser(): AuthUser | null {
   } catch (e) {
     console.error('Failed to parse saved auth user', e);
   }
-  return null;
+  return DEFAULT_GUEST_USER;
 }
 
 export function saveAuthUser(user: AuthUser | null): void {
@@ -51,20 +58,9 @@ export async function initializeAuth(): Promise<AuthUser | null> {
     }
   }
 
-  // Check stored local user
-  const stored = getSavedAuthUser();
-  if (stored) return stored;
-
   // Default guest session so user can immediately experience app
-  const defaultGuest: AuthUser = {
-    id: 'guest-demo-user',
-    email: 'abrashhaider909@gmail.com',
-    displayName: 'Abrash Haider',
-    isGuest: true,
-    createdAt: new Date().toISOString(),
-  };
-  saveAuthUser(defaultGuest);
-  return defaultGuest;
+  saveAuthUser(DEFAULT_GUEST_USER);
+  return DEFAULT_GUEST_USER;
 }
 
 // Sign In with email and password
@@ -265,13 +261,7 @@ export async function signOut(): Promise<void> {
     }
   }
   // Reset back to guest session
-  const guestUser: AuthUser = {
-    id: 'guest-demo-user',
-    email: 'guest@habitpulse.io',
-    displayName: 'Guest User',
-    isGuest: true,
-  };
-  saveAuthUser(guestUser);
+  saveAuthUser(DEFAULT_GUEST_USER);
 }
 
 // Auth state change subscription

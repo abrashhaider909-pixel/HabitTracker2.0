@@ -1,8 +1,10 @@
 import { Habit } from '../types';
+import { getTodayDateStr, addDays } from './dateUtils';
 
 /**
  * Accurately calculates both the current consecutive streak and best streak
- * for an array of completed ISO date strings (YYYY-MM-DD).
+ * for an array of completed local ISO date strings (YYYY-MM-DD).
+ * Uses timezone-safe calendar arithmetic.
  */
 export function calculateHabitStreak(completedDates: string[]): {
   currentStreak: number;
@@ -14,69 +16,47 @@ export function calculateHabitStreak(completedDates: string[]): {
   }
 
   // Deduplicate and sort dates ascending
-  const uniqueDates = Array.from(new Set(completedDates)).sort();
+  const uniqueDates = Array.from(new Set(completedDates)).filter(Boolean).sort();
   const dateSet = new Set(uniqueDates);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = today.toISOString().split('T')[0];
-
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const todayStr = getTodayDateStr();
+  const yesterdayStr = addDays(todayStr, -1);
 
   const isCompletedToday = dateSet.has(todayStr);
 
   // 1. Calculate current streak:
-  // Starts from today (if done) or yesterday (if done), and steps backward day-by-day
+  // Starts from today (if completed) or yesterday (if completed, pending today's checkoff)
   let currentStreak = 0;
-  let cursor = new Date(today);
+  let cursor: string | null = isCompletedToday
+    ? todayStr
+    : dateSet.has(yesterdayStr)
+    ? yesterdayStr
+    : null;
 
-  if (isCompletedToday) {
-    while (true) {
-      const dStr = cursor.toISOString().split('T')[0];
-      if (dateSet.has(dStr)) {
-        currentStreak++;
-        cursor.setDate(cursor.getDate() - 1);
-      } else {
-        break;
-      }
+  if (cursor) {
+    while (cursor && dateSet.has(cursor)) {
+      currentStreak++;
+      cursor = addDays(cursor, -1);
     }
-  } else if (dateSet.has(yesterdayStr)) {
-    // Completed yesterday; streak is alive pending today's checkoff
-    cursor = new Date(yesterday);
-    while (true) {
-      const dStr = cursor.toISOString().split('T')[0];
-      if (dateSet.has(dStr)) {
-        currentStreak++;
-        cursor.setDate(cursor.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-  } else {
-    currentStreak = 0;
   }
 
   // 2. Calculate best streak across all recorded history:
   let bestStreak = 0;
   let tempStreak = 0;
-  let prevTime: number | null = null;
-  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  let prevDateStr: string | null = null;
 
   for (const dStr of uniqueDates) {
-    const curTime = new Date(dStr + 'T00:00:00').getTime();
-    if (prevTime === null) {
+    if (!prevDateStr) {
       tempStreak = 1;
     } else {
-      const dayDiff = Math.round((curTime - prevTime) / ONE_DAY_MS);
-      if (dayDiff === 1) {
+      const expectedNext = addDays(prevDateStr, 1);
+      if (dStr === expectedNext) {
         tempStreak++;
-      } else if (dayDiff > 1) {
+      } else if (dStr > expectedNext) {
         tempStreak = 1;
       }
     }
-    prevTime = curTime;
+    prevDateStr = dStr;
     if (tempStreak > bestStreak) {
       bestStreak = tempStreak;
     }
@@ -92,12 +72,37 @@ export function calculateHabitStreak(completedDates: string[]): {
 }
 
 /**
+ * Checks if a habit or task is completed for a specific date or in general.
+ */
+export function isHabitCompleted(habit: Habit, targetDate: string): boolean {
+  if (habit.isDaily) {
+    return habit.completedDates.includes(targetDate);
+  }
+  // For one-time tasks: completed if any completed date exists
+  return habit.completedDates.length > 0;
+}
+
+/**
  * Updates a habit's completedDates array for a given date, recalculating current and best streak.
+ * For one-time tasks, toggles completion between completed (with targetDate) and incomplete.
  */
 export function toggleHabitCompletion(
   habit: Habit,
   targetDate: string
 ): Habit {
+  if (!habit.isDaily) {
+    // One-time task logic:
+    const currentlyDone = habit.completedDates.length > 0;
+    const updatedDates = currentlyDone ? [] : [targetDate];
+    return {
+      ...habit,
+      completedDates: updatedDates,
+      streak: currentlyDone ? 0 : 1,
+      bestStreak: currentlyDone ? habit.bestStreak : Math.max(habit.bestStreak, 1),
+    };
+  }
+
+  // Daily recurring habit logic:
   const isDone = habit.completedDates.includes(targetDate);
   const updatedDates = isDone
     ? habit.completedDates.filter((d) => d !== targetDate)

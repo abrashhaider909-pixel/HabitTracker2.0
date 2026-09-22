@@ -37,7 +37,9 @@ import {
   saveLocalCareerMilestones, 
   getSavedSupabaseConfig, 
   saveSupabaseConfig,
+  isSupabaseConfigured,
   fetchRemoteUserData,
+  upsertHabitToSupabase,
   deleteHabitFromSupabase,
   deleteTransactionFromSupabase,
   syncAllToSupabase
@@ -55,13 +57,14 @@ import {
   playNotificationChime, 
   getTodayDayOfWeek 
 } from './lib/notifications';
-import { calculateHabitStreak, toggleHabitCompletion } from './lib/streaks';
+import { calculateHabitStreak, toggleHabitCompletion, isHabitCompleted } from './lib/streaks';
+import { getTodayDateStr } from './lib/dateUtils';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function App() {
-  const getTodayISO = () => new Date().toISOString().split('T')[0];
+  const getTodayISO = () => getTodayDateStr();
 
-  const [selectedDate, setSelectedDate] = useState<string>(getTodayISO());
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayDateStr());
   const [activeTab, setActiveTab] = useState<string>('habits');
 
   // Authentication State
@@ -72,19 +75,30 @@ export default function App() {
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => getStoredNotificationSettings());
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const lastTriggeredMinuteRef = useRef<string>('');
+  const lastLoadedUserIdRef = useRef<string | null>(getSavedAuthUser()?.id || 'guest-demo-user');
 
   // Core Data States (Scoped to active user for data privacy & persistence)
-  const [habits, setHabits] = useState<Habit[]>(() => getLocalHabits(INITIAL_HABITS, user?.id));
-  const [transactions, setTransactions] = useState<Transaction[]>(() => getLocalTransactions(INITIAL_TRANSACTIONS, user?.id));
+  const [habits, setHabits] = useState<Habit[]>(() => {
+    const initialUser = getSavedAuthUser();
+    return getLocalHabits(INITIAL_HABITS, initialUser?.id);
+  });
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const initialUser = getSavedAuthUser();
+    return getLocalTransactions(INITIAL_TRANSACTIONS, initialUser?.id);
+  });
   const [evaluations, setEvaluations] = useState<Record<string, AIEvaluationResult>>(() => {
-    const today = getTodayISO();
-    const loaded = getLocalEvaluations({ [today]: INITIAL_EVALUATION }, user?.id);
+    const initialUser = getSavedAuthUser();
+    const today = getTodayDateStr();
+    const loaded = getLocalEvaluations({ [today]: INITIAL_EVALUATION }, initialUser?.id);
     if (!loaded[today]) {
       loaded[today] = { ...INITIAL_EVALUATION, date: today };
     }
     return loaded;
   });
-  const [careerMilestones, setCareerMilestones] = useState<CareerMilestone[]>(() => getLocalCareerMilestones(INITIAL_CAREER_MILESTONES, user?.id));
+  const [careerMilestones, setCareerMilestones] = useState<CareerMilestone[]>(() => {
+    const initialUser = getSavedAuthUser();
+    return getLocalCareerMilestones(INITIAL_CAREER_MILESTONES, initialUser?.id);
+  });
   const [supabaseConfig, setSupabaseConfigState] = useState<SupabaseConfig>(() => getSavedSupabaseConfig());
 
   // Modals
@@ -96,10 +110,10 @@ export default function App() {
   const [coachInitialPrompt, setCoachInitialPrompt] = useState<string>('');
 
   // Toast Feedback
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
 
-  const showToast = (message: string, type: 'success' | 'info' = 'success') => {
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
@@ -128,6 +142,13 @@ export default function App() {
   // Reload user data when active user account changes
   useEffect(() => {
     let cancelled = false;
+    const currentUserId = user?.id || 'guest-demo-user';
+
+    // Only reload if the user identity has actually switched to a different account
+    if (lastLoadedUserIdRef.current === currentUserId && user?.isGuest) {
+      return;
+    }
+    lastLoadedUserIdRef.current = currentUserId;
 
     const loadUserData = async () => {
       const userId = user?.id;
@@ -167,15 +188,15 @@ export default function App() {
       setEvaluations(loadedEvals);
       setCareerMilestones(loadedMilestones);
 
-      // Load cloud data for logged-in users
-      if (userId) {
+      // Load cloud data for logged-in users when Supabase is configured
+      if (userId && !user?.isGuest && isSupabaseConfigured()) {
         try {
           const remote = await fetchRemoteUserData(userId);
 
           if (cancelled) return;
 
           if (remote.error) {
-            console.error('Failed to load Supabase data:', remote.error);
+            console.warn('Could not load Supabase data:', remote.error);
             return;
           }
 
@@ -194,7 +215,7 @@ export default function App() {
             transactions: remote.transactions?.length ?? 0,
           });
         } catch (error) {
-          console.error('Error loading Supabase data:', error);
+          console.warn('Notice loading Supabase data:', error);
         }
       }
     };
@@ -271,50 +292,80 @@ export default function App() {
   // Habit Handlers with mathematically exact streak recalculation
   const handleToggleHabit = useCallback((habitId: string) => {
     setHabits((prev) => {
-      return prev.map((h) => {
+      const updated = prev.map((h) => {
         if (h.id !== habitId) return h;
         return toggleHabitCompletion(h, selectedDate);
       });
+      // Synchronous immediate disk write
+      saveLocalHabits(updated, user?.id);
+
+      const toggled = updated.find((h) => h.id === habitId);
+      if (toggled && user?.id && !user?.isGuest && isSupabaseConfigured()) {
+        upsertHabitToSupabase(toggled, user.id).catch((err) => {
+          console.warn('Background Supabase habit update notice:', err);
+        });
+      }
+      return updated;
     });
 
     showToast('Routine status updated');
-  }, [selectedDate]);
+  }, [selectedDate, user?.id, user?.isGuest]);
 
   // Toggle habit for any date (e.g. from 30-Day consistency heatmap or sparklines)
   const handleToggleHabitDate = useCallback((habitId: string, date: string) => {
     setHabits((prev) => {
-      return prev.map((h) => {
+      const updated = prev.map((h) => {
         if (h.id !== habitId) return h;
         return toggleHabitCompletion(h, date);
       });
+      // Synchronous immediate disk write
+      saveLocalHabits(updated, user?.id);
+
+      const toggled = updated.find((h) => h.id === habitId);
+      if (toggled && user?.id && !user?.isGuest && isSupabaseConfigured()) {
+        upsertHabitToSupabase(toggled, user.id).catch((err) => {
+          console.warn('Background Supabase habit update notice:', err);
+        });
+      }
+      return updated;
     });
 
     showToast(`Logged status for ${date}`);
-  }, []);
+  }, [user?.id, user?.isGuest]);
 
   const handleDeleteHabit = useCallback(async (habitId: string) => {
-    setHabits((prev) => prev.filter((h) => h.id !== habitId));
+    setHabits((prev) => {
+      const updated = prev.filter((h) => h.id !== habitId);
+      saveLocalHabits(updated, user?.id);
+      return updated;
+    });
 
     const currentUserId = user?.id;
 
-    if (currentUserId) {
+    if (currentUserId && !user?.isGuest && isSupabaseConfigured()) {
       const result = await deleteHabitFromSupabase(habitId, currentUserId);
 
       if (!result.success) {
-        console.error('Failed to delete habit from Supabase:', result.message);
+        console.warn('Failed to delete habit from Supabase:', result.message);
         showToast('Habit removed locally, but Supabase deletion failed.', 'error');
         return;
       }
     }
 
     showToast('Habit deleted', 'info');
-  }, [user?.id]);
+  }, [user?.id, user?.isGuest]);
 
   const handleSaveHabit = useCallback((habitData: Partial<Habit>) => {
     if (editingHabit) {
-      setHabits((prev) =>
-        prev.map((h) => (h.id === editingHabit.id ? { ...h, ...habitData } as Habit : h))
-      );
+      setHabits((prev) => {
+        const updated = prev.map((h) => (h.id === editingHabit.id ? { ...h, ...habitData } as Habit : h));
+        saveLocalHabits(updated, user?.id);
+        const saved = updated.find(h => h.id === editingHabit.id);
+        if (saved && user?.id && !user?.isGuest && isSupabaseConfigured()) {
+          upsertHabitToSupabase(saved, user.id).catch(() => {});
+        }
+        return updated;
+      });
       showToast('Habit updated');
     } else {
       const newHabit: Habit = {
@@ -331,11 +382,18 @@ export default function App() {
         bestStreak: 0,
         createdAt: new Date().toISOString(),
       };
-      setHabits((prev) => [newHabit, ...prev]);
+      setHabits((prev) => {
+        const updated = [newHabit, ...prev];
+        saveLocalHabits(updated, user?.id);
+        if (user?.id && !user?.isGuest && isSupabaseConfigured()) {
+          upsertHabitToSupabase(newHabit, user.id).catch(() => {});
+        }
+        return updated;
+      });
       showToast('New habit target created');
     }
     setEditingHabit(null);
-  }, [editingHabit]);
+  }, [editingHabit, user?.id, user?.isGuest]);
 
   // Transaction Handlers
   const handleAddTransaction = useCallback((txData: Omit<Transaction, 'id' | 'createdAt'>) => {
@@ -344,27 +402,35 @@ export default function App() {
       id: `tx-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
-    setTransactions((prev) => [newTx, ...prev]);
+    setTransactions((prev) => {
+      const updated = [newTx, ...prev];
+      saveLocalTransactions(updated, user?.id);
+      return updated;
+    });
     showToast(`Logged $${newTx.amount} ${newTx.type}`);
-  }, []);
+  }, [user?.id]);
 
   const handleDeleteTransaction = useCallback(async (id: string) => {
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    setTransactions((prev) => {
+      const updated = prev.filter((t) => t.id !== id);
+      saveLocalTransactions(updated, user?.id);
+      return updated;
+    });
 
     const currentUserId = user?.id;
 
-    if (currentUserId) {
+    if (currentUserId && !user?.isGuest && isSupabaseConfigured()) {
       const result = await deleteTransactionFromSupabase(id, currentUserId);
 
       if (!result.success) {
-        console.error('Failed to delete transaction from Supabase:', result.message);
+        console.warn('Failed to delete transaction from Supabase:', result.message);
         showToast('Transaction removed locally, but Supabase deletion failed.', 'error');
         return;
       }
     }
 
     showToast('Transaction deleted', 'info');
-  }, [user?.id]);
+  }, [user?.id, user?.isGuest]);
 
   // Career Milestone Handlers
   const handleToggleMilestone = useCallback((id: string) => {
@@ -413,7 +479,7 @@ export default function App() {
         if (matching.length === 0) {
           metrics[d] = 50;
         } else {
-          const done = matching.filter((h) => h.completedDates.includes(selectedDate)).length;
+          const done = matching.filter((h) => isHabitCompleted(h, selectedDate)).length;
           metrics[d] = Math.round((done / matching.length) * 100);
         }
       });
@@ -433,7 +499,7 @@ export default function App() {
         habits: habits.map((h) => ({
           title: h.title,
           category: h.category,
-          completed: h.completedDates.includes(selectedDate),
+          completed: isHabitCompleted(h, selectedDate),
           streak: h.streak,
         })),
         metrics,
@@ -511,6 +577,8 @@ export default function App() {
           <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-900 border border-indigo-500/40 text-white shadow-xl shadow-black/60 text-xs font-semibold">
             {toast.type === 'success' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            ) : toast.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-rose-400" />
             ) : (
               <AlertCircle className="w-4 h-4 text-indigo-400" />
             )}

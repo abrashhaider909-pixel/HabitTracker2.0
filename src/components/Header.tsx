@@ -15,6 +15,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { Habit, SupabaseConfig, AuthUser, NotificationSettings } from '../types';
+import { formatDisplayDate, getTodayDateStr, addDays } from '../lib/dateUtils';
 
 interface HeaderProps {
   selectedDate: string;
@@ -52,25 +53,15 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
 }) => {
   // Format selected date
-  const dateObj = new Date(selectedDate + 'T00:00:00');
-  const formattedDate = dateObj.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
+  const formattedDate = formatDisplayDate(selectedDate);
+  const isToday = selectedDate === getTodayDateStr();
 
   const shiftDate = (deltaDays: number) => {
-    const current = new Date(selectedDate + 'T00:00:00');
-    current.setDate(current.getDate() + deltaDays);
-    const newStr = current.toISOString().split('T')[0];
-    onDateChange(newStr);
+    onDateChange(addDays(selectedDate, deltaDays));
   };
 
   const jumpToToday = () => {
-    onDateChange(new Date().toISOString().split('T')[0]);
+    onDateChange(getTodayDateStr());
   };
 
   // Completion calculation for selected date

@@ -19,8 +19,8 @@ export function getSavedSupabaseConfig(): SupabaseConfig {
     console.error('Failed to parse saved Supabase config', e);
   }
   return {
-    url: '',
-    anonKey: '',
+    url: (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) || '',
+    anonKey: (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || '',
     isConnected: false,
   };
 }
@@ -50,6 +50,10 @@ export function getSupabaseClient(): SupabaseClient | null {
     }
   }
   return null;
+}
+
+export function isSupabaseConfigured(): boolean {
+  return getSupabaseClient() !== null;
 }
 
 export async function testSupabaseConnection(url: string, anonKey: string): Promise<{ success: boolean; message: string }> {
@@ -185,7 +189,7 @@ export async function fetchRemoteUserData(userId: string): Promise<{
   error?: string;
 }> {
   const client = getSupabaseClient();
-  if (!client) return { error: 'Supabase client not configured' };
+  if (!client) return {};
 
   try {
     const [habitsRes, txRes] = await Promise.all([
@@ -231,6 +235,40 @@ export async function fetchRemoteUserData(userId: string): Promise<{
   }
 }
 
+export async function upsertHabitToSupabase(
+  habit: Habit,
+  userId: string
+): Promise<{ success: boolean; message: string }> {
+  const client = getSupabaseClient();
+  if (!client || !userId) {
+    return { success: true, message: 'Local mode only.' };
+  }
+
+  try {
+    const payload = {
+      ...(habit.id.includes('-') && habit.id.length > 20 ? { id: habit.id } : {}),
+      user_id: userId && userId.includes('-') ? userId : undefined,
+      title: habit.title,
+      description: habit.description,
+      category: habit.category,
+      is_daily: habit.isDaily,
+      completed_dates: habit.completedDates,
+      target_duration_minutes: habit.targetDurationMinutes || 30,
+      time_of_day: habit.timeOfDay || 'anytime',
+      priority: habit.priority,
+      streak: habit.streak,
+      best_streak: habit.bestStreak,
+    };
+
+    const { error } = await client.from('habits').upsert(payload);
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return { success: true, message: 'Habit synchronized with Supabase' };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Upsert failed' };
+  }
+}
 
 export async function deleteHabitFromSupabase(
   habitId: string,
@@ -240,8 +278,8 @@ export async function deleteHabitFromSupabase(
 
   if (!client) {
     return {
-      success: false,
-      message: 'Supabase client is not configured.',
+      success: true,
+      message: 'Supabase client is not configured (local delete only).',
     };
   }
 
@@ -287,8 +325,8 @@ export async function deleteTransactionFromSupabase(
 
   if (!client) {
     return {
-      success: false,
-      message: 'Supabase client is not configured.',
+      success: true,
+      message: 'Supabase client is not configured (local delete only).',
     };
   }
 

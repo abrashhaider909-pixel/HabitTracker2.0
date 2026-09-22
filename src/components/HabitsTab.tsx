@@ -19,10 +19,14 @@ import {
   CalendarDays,
   LayoutGrid,
   TrendingUp,
-  Award
+  Award,
+  Check,
+  X
 } from 'lucide-react';
 import { Habit, LifeDimension } from '../types';
 import { HabitConsistencyView } from './HabitConsistencyView';
+import { isHabitCompleted } from '../lib/streaks';
+import { getTodayDateStr, addDays } from '../lib/dateUtils';
 
 interface HabitsTabProps {
   habits: Habit[];
@@ -48,45 +52,44 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
   onEvaluateDay,
 }) => {
   const [viewMode, setViewMode] = useState<'cards' | 'consistency'>('cards');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategories, setSelectedCategories] = useState<LifeDimension[]>([]);
   const [filterType, setFilterType] = useState<'all' | 'daily' | 'task'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // 14-day recent window for the mini card sparkline dots
+  // 14-day recent window for the mini card sparkline dots (timezone-safe)
   const recent14Days = useMemo(() => {
     const days: string[] = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayDateStr();
     for (let i = 13; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      days.push(d.toISOString().split('T')[0]);
+      days.push(addDays(today, -i));
     }
     return days;
   }, []);
 
   // Category styling and metadata
-  const categoryConfig: Record<LifeDimension, { label: string; icon: any; color: string; badgeBg: string; textCol: string }> = {
+  const categoryConfig: Record<LifeDimension, {
+    label: string;
+    icon: React.ElementType;
+    color: string;
+    badgeBg: string;
+    textCol: string;
+    activeBg: string;
+    activeBorder: string;
+    activeText: string;
+    activeRing: string;
+    activePill: string;
+  }> = {
     education: {
       label: 'Education',
       icon: BookOpen,
       color: 'from-blue-500 to-cyan-400',
       badgeBg: 'bg-blue-500/10 border-blue-500/30',
       textCol: 'text-blue-400',
-    },
-    social: {
-      label: 'Social',
-      icon: HeartHandshake,
-      color: 'from-pink-500 to-rose-400',
-      badgeBg: 'bg-pink-500/10 border-pink-500/30',
-      textCol: 'text-pink-400',
-    },
-    religion: {
-      label: 'Religion',
-      icon: SunMedium,
-      color: 'from-amber-500 to-yellow-400',
-      badgeBg: 'bg-amber-500/10 border-amber-500/30',
-      textCol: 'text-amber-400',
+      activeBg: 'bg-blue-500/15',
+      activeBorder: 'border-blue-500/50',
+      activeText: 'text-blue-300',
+      activeRing: 'ring-blue-500/30',
+      activePill: 'bg-blue-500/20 text-blue-200 border-blue-500/30',
     },
     health: {
       label: 'Health',
@@ -94,6 +97,11 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
       color: 'from-emerald-500 to-teal-400',
       badgeBg: 'bg-emerald-500/10 border-emerald-500/30',
       textCol: 'text-emerald-400',
+      activeBg: 'bg-emerald-500/15',
+      activeBorder: 'border-emerald-500/50',
+      activeText: 'text-emerald-300',
+      activeRing: 'ring-emerald-500/30',
+      activePill: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/30',
     },
     career: {
       label: 'Career',
@@ -101,14 +109,71 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
       color: 'from-violet-500 to-purple-400',
       badgeBg: 'bg-violet-500/10 border-violet-500/30',
       textCol: 'text-violet-400',
+      activeBg: 'bg-violet-500/15',
+      activeBorder: 'border-violet-500/50',
+      activeText: 'text-violet-300',
+      activeRing: 'ring-violet-500/30',
+      activePill: 'bg-violet-500/20 text-violet-200 border-violet-500/30',
     },
+    religion: {
+      label: 'Religion',
+      icon: SunMedium,
+      color: 'from-amber-500 to-yellow-400',
+      badgeBg: 'bg-amber-500/10 border-amber-500/30',
+      textCol: 'text-amber-400',
+      activeBg: 'bg-amber-500/15',
+      activeBorder: 'border-amber-500/50',
+      activeText: 'text-amber-300',
+      activeRing: 'ring-amber-500/30',
+      activePill: 'bg-amber-500/20 text-amber-200 border-amber-500/30',
+    },
+    social: {
+      label: 'Social',
+      icon: HeartHandshake,
+      color: 'from-pink-500 to-rose-400',
+      badgeBg: 'bg-pink-500/10 border-pink-500/30',
+      textCol: 'text-pink-400',
+      activeBg: 'bg-pink-500/15',
+      activeBorder: 'border-pink-500/50',
+      activeText: 'text-pink-300',
+      activeRing: 'ring-pink-500/30',
+      activePill: 'bg-pink-500/20 text-pink-200 border-pink-500/30',
+    },
+  };
+
+  // Toggle category visibility
+  const handleToggleCategory = (dim: LifeDimension) => {
+    setSelectedCategories((prev) => {
+      // If currently all categories are visible, clicking one isolates it
+      if (prev.length === 0) {
+        return [dim];
+      }
+      // If already active, toggle it off
+      if (prev.includes(dim)) {
+        const next = prev.filter((c) => c !== dim);
+        return next;
+      }
+      // Otherwise add it
+      const next = [...prev, dim];
+      // If all 5 selected, reset to all
+      if (next.length === 5) {
+        return [];
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllCategories = () => {
+    setSelectedCategories([]);
   };
 
   // Filtered habits
   const filteredHabits = useMemo(() => {
     return habits.filter(h => {
       // Category filter
-      if (selectedCategory !== 'all' && h.category !== selectedCategory) return false;
+      if (selectedCategories.length > 0 && !selectedCategories.includes(h.category)) {
+        return false;
+      }
       // Type filter
       if (filterType === 'daily' && !h.isDaily) return false;
       if (filterType === 'task' && h.isDaily) return false;
@@ -121,10 +186,10 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
       }
       return true;
     });
-  }, [habits, selectedCategory, filterType, searchQuery]);
+  }, [habits, selectedCategories, filterType, searchQuery]);
 
   // Daily statistics for selected date
-  const completedCount = habits.filter(h => h.completedDates.includes(selectedDate)).length;
+  const completedCount = habits.filter(h => isHabitCompleted(h, selectedDate)).length;
   const totalCount = habits.length;
   const executionPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
@@ -141,7 +206,7 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
     habits.forEach(h => {
       if (cats[h.category]) {
         cats[h.category].total += 1;
-        if (h.completedDates.includes(selectedDate)) {
+        if (isHabitCompleted(h, selectedDate)) {
           cats[h.category].completed += 1;
         }
       }
@@ -276,43 +341,90 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
         />
       ) : (
         <>
-          {/* 5-Dimension Mini Progress Badges */}
-          <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex flex-wrap items-center gap-2 sm:gap-4">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mr-2">
-              <Filter className="w-3.5 h-3.5" /> 5 Dimensions:
-            </span>
-            {(['education', 'religion', 'health', 'social', 'career'] as LifeDimension[]).map(dim => {
-              const cfg = categoryConfig[dim];
-              const Icon = cfg.icon;
-              const stat = categoryStats[dim];
-              const isSelected = selectedCategory === dim;
-              return (
+          {/* Category Filter Chips */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/90 shadow-sm flex flex-col gap-2.5">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-indigo-400" />
+                  Category Filters:
+                </span>
+                <span className="text-slate-500 hidden sm:inline">
+                  {selectedCategories.length === 0
+                    ? 'Showing all categories'
+                    : `Filtered to ${selectedCategories.length} categor${selectedCategories.length === 1 ? 'y' : 'ies'}`}
+                </span>
+              </div>
+              {selectedCategories.length > 0 && (
                 <button
-                  key={dim}
-                  id={`filter-dim-${dim}`}
-                  onClick={() => setSelectedCategory(isSelected ? 'all' : dim)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
-                    isSelected
-                      ? 'bg-slate-800 border-indigo-500/60 text-white shadow-sm ring-1 ring-indigo-500/40'
-                      : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
-                  }`}
+                  id="filter-chip-clear"
+                  onClick={handleSelectAllCategories}
+                  className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium cursor-pointer"
                 >
-                  <Icon className={`w-3.5 h-3.5 ${cfg.textCol}`} />
-                  <span>{cfg.label}</span>
-                  <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-semibold">
-                    {stat.completed}/{stat.total}
-                  </span>
+                  <X className="w-3.5 h-3.5" />
+                  <span>Show All Categories</span>
                 </button>
-              );
-            })}
-            {selectedCategory !== 'all' && (
+              )}
+            </div>
+
+            {/* Chips Row */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 sm:flex-wrap no-scrollbar">
+              {/* All Categories Chip */}
               <button
-                onClick={() => setSelectedCategory('all')}
-                className="text-xs text-indigo-400 hover:underline ml-auto"
+                id="filter-chip-all"
+                onClick={handleSelectAllCategories}
+                className={`group flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                  selectedCategories.length === 0
+                    ? 'bg-indigo-600/20 border-indigo-500/60 text-indigo-200 ring-1 ring-indigo-500/40 shadow-sm shadow-indigo-500/10'
+                    : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700 hover:bg-slate-900'
+                }`}
               >
-                Clear Filter
+                <Layers className={`w-3.5 h-3.5 ${selectedCategories.length === 0 ? 'text-indigo-400' : 'text-slate-500'}`} />
+                <span>All Categories</span>
+                <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-bold transition-colors ${
+                  selectedCategories.length === 0
+                    ? 'bg-indigo-500/30 text-indigo-200'
+                    : 'bg-slate-800/80 text-slate-400'
+                }`}>
+                  {habits.length}
+                </span>
               </button>
-            )}
+
+              {/* Individual Category Chips */}
+              {(['education', 'health', 'career', 'religion', 'social'] as LifeDimension[]).map(dim => {
+                const cfg = categoryConfig[dim];
+                const Icon = cfg.icon;
+                const stat = categoryStats[dim];
+                const isSelected = selectedCategories.includes(dim);
+
+                return (
+                  <button
+                    key={dim}
+                    id={`filter-chip-${dim}`}
+                    onClick={() => handleToggleCategory(dim)}
+                    title={isSelected ? `Click to hide ${cfg.label}` : `Click to toggle ${cfg.label} visibility`}
+                    className={`group flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
+                      isSelected
+                        ? `${cfg.activeBg} ${cfg.activeBorder} ${cfg.activeText} ring-1 ${cfg.activeRing} shadow-sm`
+                        : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700 hover:bg-slate-900'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-current' : cfg.textCol}`} />
+                    <span>{cfg.label}</span>
+                    {isSelected && (
+                      <Check className="w-3 h-3 text-current stroke-[2.5]" />
+                    )}
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-bold transition-colors ${
+                      isSelected
+                        ? cfg.activePill
+                        : 'bg-slate-800/80 text-slate-400 group-hover:text-slate-300'
+                    }`}>
+                      {stat.completed}/{stat.total}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Control Bar: Search & Sub-filters & Add Button */}
@@ -378,18 +490,35 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
               <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
                 Try adjusting your search or category filter, or add a new high-leverage habit to build momentum.
               </p>
-              <button
-                onClick={onOpenAddModal}
-                className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Create New Habit</span>
-              </button>
+              <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+                {(selectedCategories.length > 0 || filterType !== 'all' || searchQuery.trim() !== '') && (
+                  <button
+                    id="habits-empty-reset-btn"
+                    onClick={() => {
+                      setSelectedCategories([]);
+                      setFilterType('all');
+                      setSearchQuery('');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors border border-slate-700"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Reset All Filters</span>
+                  </button>
+                )}
+                <button
+                  id="habits-empty-create-btn"
+                  onClick={onOpenAddModal}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create New Habit</span>
+                </button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {filteredHabits.map((habit) => {
-                const isCompleted = habit.completedDates.includes(selectedDate);
+                const isCompleted = isHabitCompleted(habit, selectedDate);
                 const cfg = categoryConfig[habit.category];
                 const CategoryIcon = cfg.icon;
 
@@ -474,7 +603,7 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                               {recent14Days.map((dateStr) => {
                                 const isDone = habit.completedDates.includes(dateStr);
                                 const isCurSelected = dateStr === selectedDate;
-                                const isToday = dateStr === new Date().toISOString().split('T')[0];
+                                const isToday = dateStr === getTodayDateStr();
                                 return (
                                   <button
                                     key={dateStr}

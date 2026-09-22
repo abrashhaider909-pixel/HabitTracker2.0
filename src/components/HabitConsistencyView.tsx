@@ -27,6 +27,7 @@ import {
   Cell 
 } from 'recharts';
 import { Habit, LifeDimension } from '../types';
+import { getTodayDateStr, addDays, parseLocalDate } from '../lib/dateUtils';
 
 interface HabitConsistencyViewProps {
   habits: Habit[];
@@ -56,14 +57,11 @@ export const HabitConsistencyView: React.FC<HabitConsistencyViewProps> = ({
       isSelected: boolean;
     }> = [];
 
-    const todayObj = new Date();
-    todayObj.setHours(0, 0, 0, 0);
-    const todayStr = todayObj.toISOString().split('T')[0];
+    const todayStr = getTodayDateStr();
 
     for (let i = 29; i >= 0; i--) {
-      const d = new Date(todayObj);
-      d.setDate(todayObj.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = addDays(todayStr, -i);
+      const d = parseLocalDate(dateStr);
       days.push({
         dateStr,
         dayNum: d.getDate(),

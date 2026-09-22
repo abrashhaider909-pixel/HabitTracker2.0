@@ -1,4 +1,15 @@
 import { Habit, Transaction, CareerMilestone, AIEvaluationResult } from '../types';
+import { getTodayDateStr, addDays } from './dateUtils';
+
+// Helper to pre-seed mathematically authentic streak history up to yesterday
+function getPastConsecutiveDates(count: number): string[] {
+  const dates: string[] = [];
+  const today = getTodayDateStr();
+  for (let i = 1; i <= count; i++) {
+    dates.push(addDays(today, -i));
+  }
+  return dates.reverse();
+}
 
 export const INITIAL_HABITS: Habit[] = [
   {
@@ -7,7 +18,7 @@ export const INITIAL_HABITS: Habit[] = [
     description: 'Dedicate 20 minutes to morning gratitude, meditation, and quiet focus.',
     category: 'religion',
     isDaily: true,
-    completedDates: [],
+    completedDates: getPastConsecutiveDates(6),
     targetDurationMinutes: 20,
     timeOfDay: 'morning',
     priority: 'high',
@@ -21,7 +32,7 @@ export const INITIAL_HABITS: Habit[] = [
     description: 'Focus on Trees, Graphs, or Dynamic Programming patterns.',
     category: 'career',
     isDaily: true,
-    completedDates: [],
+    completedDates: getPastConsecutiveDates(4),
     targetDurationMinutes: 45,
     timeOfDay: 'morning',
     priority: 'high',
@@ -35,7 +46,7 @@ export const INITIAL_HABITS: Habit[] = [
     description: 'Resistance training or zone 2 cardiovascular conditioning.',
     category: 'health',
     isDaily: true,
-    completedDates: [],
+    completedDates: getPastConsecutiveDates(8),
     targetDurationMinutes: 45,
     timeOfDay: 'afternoon',
     priority: 'high',
@@ -49,7 +60,7 @@ export const INITIAL_HABITS: Habit[] = [
     description: 'Designing Data-Intensive Applications or System Design Interview.',
     category: 'education',
     isDaily: true,
-    completedDates: [],
+    completedDates: getPastConsecutiveDates(3),
     targetDurationMinutes: 30,
     timeOfDay: 'evening',
     priority: 'medium',
@@ -63,7 +74,7 @@ export const INITIAL_HABITS: Habit[] = [
     description: 'Check in with parents or close mentors without phone multitasking.',
     category: 'social',
     isDaily: true,
-    completedDates: [],
+    completedDates: getPastConsecutiveDates(5),
     targetDurationMinutes: 15,
     timeOfDay: 'evening',
     priority: 'medium',
@@ -77,7 +88,7 @@ export const INITIAL_HABITS: Habit[] = [
     description: 'Review today’s wins, clear mental clutter, plan top 3 for tomorrow.',
     category: 'religion',
     isDaily: true,
-    completedDates: [],
+    completedDates: getPastConsecutiveDates(7),
     targetDurationMinutes: 10,
     timeOfDay: 'evening',
     priority: 'medium',
