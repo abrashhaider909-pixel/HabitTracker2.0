@@ -259,9 +259,44 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
                   </svg>
                 )}
                 <span>
-                  {isGoogleLoading ? 'Signing in with Google...' : 'Continue with Google'}
+                  {isGoogleLoading
+                    ? 'Signing in with Google...'
+                    : email.trim().includes('@')
+                      ? `Continue with Google (${email.trim()})`
+                      : 'Continue with Google (Abrash Haider)'}
                 </span>
               </button>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1">
+                <span className="truncate max-w-[240px]">
+                  {email.trim().includes('@')
+                    ? `Isolated account: ${email.trim()}`
+                    : 'Default account: abrashhaider909@gmail.com'}
+                </span>
+                {!email.trim().includes('@') ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const input = document.getElementById('auth-email-input') as HTMLInputElement;
+                      if (input) {
+                        input.focus();
+                        input.placeholder = 'Enter another Google email...';
+                      }
+                    }}
+                    className="text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer"
+                  >
+                    Switch account
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setEmail('')}
+                    className="text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer"
+                  >
+                    Reset to Abrash
+                  </button>
+                )}
+              </div>
 
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">

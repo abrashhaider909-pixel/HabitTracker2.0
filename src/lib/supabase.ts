@@ -106,36 +106,20 @@ export function getLocalHabits(fallback: Habit[] = [], userId?: string): Habit[]
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed)) return parsed;
       }
-
-      const baseData = localStorage.getItem(STORAGE_KEY_HABITS);
-      if (baseData !== null) {
-        const parsed = JSON.parse(baseData);
-        if (Array.isArray(parsed)) {
-          localStorage.setItem(key, baseData);
-          return parsed;
-        }
-      }
-
       return [];
-    } else {
-      const baseData = localStorage.getItem(STORAGE_KEY_HABITS);
-      if (baseData !== null) {
-        const parsed = JSON.parse(baseData);
-        if (Array.isArray(parsed)) return parsed;
-      }
     }
   } catch (e) {
     console.error('Failed to read local habits:', e);
   }
-  return userId ? [] : fallback;
+  return fallback;
 }
 
 export function saveLocalHabits(habits: Habit[], userId?: string): void {
   try {
-    const key = getScopedKey(STORAGE_KEY_HABITS, userId);
-    localStorage.setItem(key, JSON.stringify(habits));
-    // Also maintain base key for safety
-    localStorage.setItem(STORAGE_KEY_HABITS, JSON.stringify(habits));
+    if (userId) {
+      const key = getScopedKey(STORAGE_KEY_HABITS, userId);
+      localStorage.setItem(key, JSON.stringify(habits));
+    }
   } catch (e) {
     console.error(e);
   }
@@ -150,35 +134,20 @@ export function getLocalTransactions(fallback: Transaction[] = [], userId?: stri
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed)) return parsed;
       }
-
-      const baseData = localStorage.getItem(STORAGE_KEY_TRANSACTIONS);
-      if (baseData !== null) {
-        const parsed = JSON.parse(baseData);
-        if (Array.isArray(parsed)) {
-          localStorage.setItem(key, baseData);
-          return parsed;
-        }
-      }
-
       return [];
-    } else {
-      const baseData = localStorage.getItem(STORAGE_KEY_TRANSACTIONS);
-      if (baseData !== null) {
-        const parsed = JSON.parse(baseData);
-        if (Array.isArray(parsed)) return parsed;
-      }
     }
   } catch (e) {
     console.error('Failed to read local transactions:', e);
   }
-  return userId ? [] : fallback;
+  return fallback;
 }
 
 export function saveLocalTransactions(transactions: Transaction[], userId?: string): void {
   try {
-    const key = getScopedKey(STORAGE_KEY_TRANSACTIONS, userId);
-    localStorage.setItem(key, JSON.stringify(transactions));
-    localStorage.setItem(STORAGE_KEY_TRANSACTIONS, JSON.stringify(transactions));
+    if (userId) {
+      const key = getScopedKey(STORAGE_KEY_TRANSACTIONS, userId);
+      localStorage.setItem(key, JSON.stringify(transactions));
+    }
   } catch (e) {
     console.error(e);
   }
@@ -269,8 +238,8 @@ export function saveLocalCareerMilestones(milestones: CareerMilestone[], userId?
   }
 }
 
-// Fetch user transactions specifically from Supabase
-export async function fetchRemoteTransactions(userId?: string): Promise<{
+// Fetch user transactions specifically from Supabase with user privacy
+export async function fetchRemoteTransactions(userId?: string, userEmail?: string): Promise<{
   transactions: Transaction[];
   tableExists: boolean;
   error?: string;
@@ -281,29 +250,39 @@ export async function fetchRemoteTransactions(userId?: string): Promise<{
   }
 
   try {
-    let authUid: string | null = null;
-    try {
-      const { data: sessionData } = await client.auth.getSession();
-      authUid = sessionData?.session?.user?.id || null;
-    } catch {
-      // Session fetch silent fallback
-    }
-
-    const effectiveUserId = authUid || (userId && isValidUUID(userId) ? userId : null);
+    const isAbrash = userEmail?.toLowerCase() === 'abrashhaider909@gmail.com' || userId === 'f058fc67-b31d-4dfe-8433-660c50b19dcf';
 
     let rows: any[] | null = null;
     let queryError: any = null;
 
-    // Fetch all transactions from Supabase
-    const txRes = await client
-      .from('transactions')
-      .select('*')
-      .order('date', { ascending: false });
+    if (isAbrash) {
+      const txRes = await client
+        .from('transactions')
+        .select('*')
+        .or('user_id.eq.f058fc67-b31d-4dfe-8433-660c50b19dcf,user_id.is.null')
+        .order('date', { ascending: false });
 
-    if (!txRes.error && txRes.data) {
-      rows = txRes.data;
+      if (!txRes.error && txRes.data) {
+        rows = txRes.data;
+      } else {
+        queryError = txRes.error;
+      }
     } else {
-      queryError = txRes.error;
+      if (userId && isValidUUID(userId)) {
+        const txRes = await client
+          .from('transactions')
+          .select('*')
+          .eq('user_id', userId)
+          .order('date', { ascending: false });
+
+        if (!txRes.error && txRes.data) {
+          rows = txRes.data;
+        } else {
+          queryError = txRes.error;
+        }
+      } else {
+        rows = [];
+      }
     }
 
     // Check if table missing
@@ -364,8 +343,8 @@ export async function fetchRemoteTransactions(userId?: string): Promise<{
   }
 }
 
-// Fetch all remote user data (habits and transactions)
-export async function fetchRemoteUserData(userId?: string): Promise<{
+// Fetch all remote user data (habits and transactions) with strict account privacy
+export async function fetchRemoteUserData(userId?: string, userEmail?: string): Promise<{
   habits?: Habit[];
   transactions?: Transaction[];
   tableExists?: { habits: boolean; transactions: boolean };
@@ -375,21 +354,43 @@ export async function fetchRemoteUserData(userId?: string): Promise<{
   if (!client) return {};
 
   try {
-    const txResult = await fetchRemoteTransactions(userId);
+    const isAbrash = userEmail?.toLowerCase() === 'abrashhaider909@gmail.com' || userId === 'f058fc67-b31d-4dfe-8433-660c50b19dcf';
+    const txResult = await fetchRemoteTransactions(userId, userEmail);
 
     let habitsRows: any[] | null = null;
     let habitsError: any = null;
 
-    // Fetch all habits from Supabase
-    const hRes = await client
-      .from('habits')
-      .select('*')
-      .order('created_at', { ascending: false });
+    if (isAbrash) {
+      // Primary account: fetch authentic habits
+      const hRes = await client
+        .from('habits')
+        .select('*')
+        .or('user_id.eq.f058fc67-b31d-4dfe-8433-660c50b19dcf,user_id.is.null')
+        .order('created_at', { ascending: false });
 
-    if (!hRes.error && hRes.data) {
-      habitsRows = hRes.data;
+      if (!hRes.error && hRes.data) {
+        habitsRows = hRes.data;
+      } else {
+        habitsError = hRes.error;
+      }
     } else {
-      habitsError = hRes.error;
+      // STRICT DATA PRIVACY: Different account only receives records created by its own user ID
+      if (userId && isValidUUID(userId)) {
+        const hRes = await client
+          .from('habits')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+
+        if (!hRes.error && hRes.data) {
+          habitsRows = hRes.data;
+        } else {
+          habitsError = hRes.error;
+        }
+      } else {
+        // Different user starts with completely empty private workspace
+        habitsRows = [];
+      }
     }
 
     const result: {
@@ -432,6 +433,8 @@ export async function fetchRemoteUserData(userId?: string): Promise<{
         bestStreak: h.best_streak || 0,
         createdAt: h.created_at || new Date().toISOString(),
       }));
+    } else {
+      result.habits = [];
     }
 
     return result;

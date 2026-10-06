@@ -132,24 +132,6 @@ export default function App() {
     };
   }, []);
 
-  // Fetch live Supabase records on mount
-  useEffect(() => {
-    let cancelled = false;
-    fetchRemoteUserData().then((remote) => {
-      if (cancelled) return;
-      if (remote.habits && remote.habits.length > 0) {
-        setHabits(remote.habits);
-      }
-      if (remote.transactions && remote.transactions.length > 0) {
-        setTransactions(remote.transactions);
-      }
-    }).catch(console.warn);
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // Reload user data when active user account changes or on login
   useEffect(() => {
     let cancelled = false;
@@ -179,10 +161,10 @@ export default function App() {
       setEvaluations(loadedEvals);
       setCareerMilestones(loadedMilestones);
 
-      // 2. Fetch live cloud data from Supabase
+      // 2. Fetch live cloud data from Supabase scoped to this user
       if (isSupabaseConfigured()) {
         try {
-          const remote = await fetchRemoteUserData(currentUserId);
+          const remote = await fetchRemoteUserData(currentUserId, user.email);
           if (cancelled) return;
 
           // Safe habit merge: prioritize remote records if available; otherwise preserve local records and sync
@@ -194,6 +176,10 @@ export default function App() {
             for (const h of loadedHabits) {
               upsertHabitToSupabase(h, currentUserId).catch(() => {});
             }
+          } else {
+            // New account: clean empty private workspace
+            setHabits([]);
+            saveLocalHabits([], currentUserId);
           }
 
           // Safe transaction merge: prioritize remote records if available; otherwise preserve local records and sync
@@ -446,21 +432,12 @@ export default function App() {
     if (!user) return;
     setIsSyncingCloud(true);
     try {
-      const remote = await fetchRemoteUserData(user.id);
-      if (remote.transactions && remote.transactions.length > 0) {
+      const remote = await fetchRemoteUserData(user.id, user.email);
+      if (remote.transactions) {
         setTransactions(remote.transactions);
         saveLocalTransactions(remote.transactions, user.id);
-      } else {
-        // Safe sync: if remote has 0 but local has items, sync local items to remote so nothing is lost
-        const local = getLocalTransactions([], user.id);
-        if (local.length > 0) {
-          setTransactions(local);
-          for (const tx of local) {
-            upsertTransactionToSupabase(tx, user.id).catch(() => {});
-          }
-        }
       }
-      if (remote.habits && remote.habits.length > 0) {
+      if (remote.habits) {
         setHabits(remote.habits);
         saveLocalHabits(remote.habits, user.id);
       }

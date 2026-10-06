@@ -20,6 +20,10 @@ export function getStableUserId(email: string): string {
     // Ignore
   }
 
+  if (cleanEmail === 'abrashhaider909@gmail.com') {
+    return 'f058fc67-b31d-4dfe-8433-660c50b19dcf';
+  }
+
   // Deterministic stable ID based on email string hash
   let hash = 0;
   for (let i = 0; i < cleanEmail.length; i++) {
