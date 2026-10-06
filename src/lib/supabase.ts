@@ -102,51 +102,27 @@ export function getLocalHabits(fallback: Habit[] = [], userId?: string): Habit[]
     if (userId) {
       const key = getScopedKey(STORAGE_KEY_HABITS, userId);
       const data = localStorage.getItem(key);
-      if (data) {
+      if (data !== null) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-
-      // Record preservation: check if data exists in prior guest or base keys
-      const guestData = localStorage.getItem(`${STORAGE_KEY_HABITS}_guest-demo-user`);
-      if (guestData) {
-        const parsed = JSON.parse(guestData);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          localStorage.setItem(key, guestData);
-          return parsed;
-        }
+        if (Array.isArray(parsed)) return parsed;
       }
 
       const baseData = localStorage.getItem(STORAGE_KEY_HABITS);
-      if (baseData) {
+      if (baseData !== null) {
         const parsed = JSON.parse(baseData);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           localStorage.setItem(key, baseData);
           return parsed;
-        }
-      }
-
-      // Check any other existing habit keys in localStorage
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(STORAGE_KEY_HABITS)) {
-          const val = localStorage.getItem(k);
-          if (val) {
-            try {
-              const parsed = JSON.parse(val);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                localStorage.setItem(key, val);
-                return parsed;
-              }
-            } catch {}
-          }
         }
       }
 
       return [];
     } else {
       const baseData = localStorage.getItem(STORAGE_KEY_HABITS);
-      if (baseData) return JSON.parse(baseData);
+      if (baseData !== null) {
+        const parsed = JSON.parse(baseData);
+        if (Array.isArray(parsed)) return parsed;
+      }
     }
   } catch (e) {
     console.error('Failed to read local habits:', e);
@@ -165,40 +141,33 @@ export function saveLocalHabits(habits: Habit[], userId?: string): void {
   }
 }
 
-export function getLocalTransactions(fallback: Transaction[], userId?: string): Transaction[] {
+export function getLocalTransactions(fallback: Transaction[] = [], userId?: string): Transaction[] {
   try {
     if (userId) {
       const key = getScopedKey(STORAGE_KEY_TRANSACTIONS, userId);
       const data = localStorage.getItem(key);
-      if (data) {
+      if (data !== null) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed)) return parsed;
       }
 
-      // Record preservation: check if previous transactions were stored under guest or base key
-      const guestData = localStorage.getItem(`${STORAGE_KEY_TRANSACTIONS}_guest-demo-user`);
-      if (guestData) {
-        const parsed = JSON.parse(guestData);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          localStorage.setItem(key, guestData);
-          return parsed;
-        }
-      }
-
       const baseData = localStorage.getItem(STORAGE_KEY_TRANSACTIONS);
-      if (baseData) {
+      if (baseData !== null) {
         const parsed = JSON.parse(baseData);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           localStorage.setItem(key, baseData);
           return parsed;
         }
       }
 
       return [];
+    } else {
+      const baseData = localStorage.getItem(STORAGE_KEY_TRANSACTIONS);
+      if (baseData !== null) {
+        const parsed = JSON.parse(baseData);
+        if (Array.isArray(parsed)) return parsed;
+      }
     }
-
-    const baseData = localStorage.getItem(STORAGE_KEY_TRANSACTIONS);
-    if (baseData) return JSON.parse(baseData);
   } catch (e) {
     console.error('Failed to read local transactions:', e);
   }
@@ -526,7 +495,7 @@ export async function upsertTransactionToSupabase(
 // Delete single Transaction from Supabase
 export async function deleteTransactionFromSupabase(
   transactionId: string,
-  userId?: string
+  description?: string
 ): Promise<{ success: boolean; message: string }> {
   const client = getSupabaseClient();
   if (!client) {
@@ -534,15 +503,11 @@ export async function deleteTransactionFromSupabase(
   }
 
   try {
-    let query = client.from('transactions').delete().eq('id', transactionId);
-
-    if (userId && isValidUUID(userId)) {
-      query = query.eq('user_id', userId);
+    if (isValidUUID(transactionId)) {
+      await client.from('transactions').delete().eq('id', transactionId);
     }
-
-    const { error } = await query;
-    if (error) {
-      return { success: false, message: error.message };
+    if (description && description.trim()) {
+      await client.from('transactions').delete().ilike('description', description.trim());
     }
     return { success: true, message: 'Transaction removed from Supabase' };
   } catch (err: any) {
@@ -604,7 +569,7 @@ export async function upsertHabitToSupabase(
 // Delete Habit from Supabase
 export async function deleteHabitFromSupabase(
   habitId: string,
-  userId?: string
+  title?: string
 ): Promise<{ success: boolean; message: string }> {
   const client = getSupabaseClient();
   if (!client) {
@@ -612,13 +577,11 @@ export async function deleteHabitFromSupabase(
   }
 
   try {
-    let query = client.from('habits').delete().eq('id', habitId);
-    if (userId && isValidUUID(userId)) {
-      query = query.eq('user_id', userId);
+    if (isValidUUID(habitId)) {
+      await client.from('habits').delete().eq('id', habitId);
     }
-    const { error } = await query;
-    if (error) {
-      return { success: false, message: error.message };
+    if (title && title.trim()) {
+      await client.from('habits').delete().ilike('title', title.trim());
     }
     return { success: true, message: 'Habit deleted from Supabase.' };
   } catch (err: any) {

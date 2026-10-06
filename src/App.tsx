@@ -335,6 +335,7 @@ export default function App() {
 
   const handleDeleteHabit = useCallback(async (habitId: string) => {
     if (!user) return;
+    const target = habits.find((h) => h.id === habitId);
     setHabits((prev) => {
       const updated = prev.filter((h) => h.id !== habitId);
       saveLocalHabits(updated, user.id);
@@ -342,11 +343,11 @@ export default function App() {
     });
 
     if (isSupabaseConfigured()) {
-      await deleteHabitFromSupabase(habitId, user.id);
+      await deleteHabitFromSupabase(habitId, target?.title);
     }
 
     showToast('Habit deleted', 'info');
-  }, [user]);
+  }, [user, habits]);
 
   const handleSaveHabit = useCallback((habitData: Partial<Habit>) => {
     if (!user) return;
@@ -426,6 +427,7 @@ export default function App() {
 
   const handleDeleteTransaction = useCallback(async (id: string) => {
     if (!user) return;
+    const target = transactions.find((t) => t.id === id);
     setTransactions((prev) => {
       const updated = prev.filter((t) => t.id !== id);
       saveLocalTransactions(updated, user.id);
@@ -433,11 +435,11 @@ export default function App() {
     });
 
     if (isSupabaseConfigured()) {
-      await deleteTransactionFromSupabase(id, user.id);
+      await deleteTransactionFromSupabase(id, target?.description);
     }
 
     showToast('Transaction deleted', 'info');
-  }, [user]);
+  }, [user, transactions]);
 
   // Pull latest data from Supabase on demand
   const handleRefreshFromSupabase = useCallback(async () => {
