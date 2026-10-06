@@ -1,7 +1,6 @@
 import React from 'react';
 import { 
   CheckCircle2, 
-  Database, 
   Sparkles, 
   Plus, 
   Calendar as CalendarIcon, 
@@ -14,20 +13,17 @@ import {
   LogOut,
   ShieldCheck
 } from 'lucide-react';
-import { Habit, SupabaseConfig, AuthUser, NotificationSettings } from '../types';
+import { Habit, AuthUser, NotificationSettings } from '../types';
 import { formatDisplayDate, getTodayDateStr, addDays } from '../lib/dateUtils';
 
 interface HeaderProps {
   selectedDate: string;
   onDateChange: (date: string) => void;
   habits: Habit[];
-  supabaseConfig: SupabaseConfig;
-  user: AuthUser | null;
+  user: AuthUser;
   notificationSettings: NotificationSettings;
-  onOpenAuthModal: () => void;
   onLogout: () => void;
   onOpenNotificationModal: () => void;
-  onOpenSupabaseModal: () => void;
   onOpenHabitModal: () => void;
   onOpenTransactionModal: () => void;
   onOpenCoachModal: () => void;
@@ -39,13 +35,10 @@ export const Header: React.FC<HeaderProps> = ({
   selectedDate,
   onDateChange,
   habits,
-  supabaseConfig,
   user,
   notificationSettings,
-  onOpenAuthModal,
   onLogout,
   onOpenNotificationModal,
-  onOpenSupabaseModal,
   onOpenHabitModal,
   onOpenTransactionModal,
   onOpenCoachModal,
@@ -65,7 +58,6 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   // Completion calculation for selected date
-  const dailyHabits = habits.filter(h => h.isDaily);
   const completedTodayCount = habits.filter(h => h.completedDates.includes(selectedDate)).length;
   const totalHabitsCount = habits.length;
   const completionPercentage = totalHabitsCount > 0 
@@ -171,51 +163,6 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Supabase Status Pill */}
-            <button
-              id="header-supabase-btn"
-              onClick={onOpenSupabaseModal}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
-                supabaseConfig.isConnected
-                  ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30 hover:bg-emerald-900/40'
-                  : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700 hover:text-white'
-              }`}
-              title="Supabase Database Status & Schema"
-            >
-              <Database className={`w-3.5 h-3.5 ${supabaseConfig.isConnected ? 'text-emerald-400' : 'text-slate-400'}`} />
-              <span>{supabaseConfig.isConnected ? 'Supabase Sync' : 'SQL DB'}</span>
-              <span className={`w-2 h-2 rounded-full ${supabaseConfig.isConnected ? 'bg-emerald-400 ring-2 ring-emerald-400/20' : 'bg-slate-500'}`} />
-            </button>
-
-            {/* User Auth Account Badge / Trigger */}
-            {user && !user.isGuest ? (
-              <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl pl-2.5 pr-1 py-1">
-                <div className="flex items-center gap-1.5 text-xs text-slate-300 mr-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="max-w-[100px] truncate font-medium" title={user.email}>
-                    {user.displayName || user.email.split('@')[0]}
-                  </span>
-                </div>
-                <button
-                  id="header-logout-btn"
-                  onClick={onLogout}
-                  className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
-                  title="Sign Out"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                id="header-auth-btn"
-                onClick={onOpenAuthModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/20 hover:text-white transition-colors"
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>Sign In</span>
-              </button>
-            )}
-
             {/* AI Coach Trigger */}
             <button
               id="header-ai-coach-btn"
@@ -226,67 +173,102 @@ export const Header: React.FC<HeaderProps> = ({
               <span>AI Coach</span>
             </button>
 
+            {/* User Auth Account Badge & Logout */}
+            <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl pl-2.5 pr-1 py-1">
+              <div className="flex items-center gap-1.5 text-xs text-slate-300 mr-1.5">
+                <div className="w-5 h-5 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 flex items-center justify-center font-bold text-[10px]">
+                  {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                </div>
+                <span className="max-w-[120px] truncate font-medium text-slate-200" title={user.email}>
+                  {user.displayName || user.email.split('@')[0]}
+                </span>
+              </div>
+              <button
+                id="header-logout-btn"
+                onClick={onLogout}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-1 text-xs"
+                title="Sign Out of HabitPulse"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline text-[11px]">Sign Out</span>
+              </button>
+            </div>
+
             {/* Quick Actions Dropdown / Buttons */}
             <button
               id="header-add-habit-btn"
               onClick={onOpenHabitModal}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-500 transition-all shadow-md shadow-indigo-600/20"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-sm shadow-indigo-600/30"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Add Habit</span>
+              <span className="hidden sm:inline">Add Habit</span>
             </button>
 
             <button
-              id="header-add-expense-btn"
+              id="header-log-money-btn"
               onClick={onOpenTransactionModal}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-200 hover:bg-slate-800 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm shadow-emerald-600/30"
             >
-              <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Log Money</span>
+              <Wallet className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Log Money</span>
             </button>
           </div>
+
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-1 sm:gap-2 mt-3 pt-2 border-t border-slate-800/60 overflow-x-auto no-scrollbar">
-          {[
-            { id: 'habits', label: 'Daily Routines & Habits', count: totalHabitsCount },
-            { id: 'money', label: 'Track My Money', badge: '$' },
-            { id: 'ai-eval', label: '5D AI Life Judgement', badge: 'AI' },
-            { id: 'career', label: 'SWE Career Growth', badge: 'Roadmap' },
-          ].map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                id={`tab-nav-${tab.id}`}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
-                  isActive
-                    ? 'bg-slate-800 text-white font-semibold shadow-sm border border-slate-700/80'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-                }`}
-              >
-                <span>{tab.label}</span>
-                {tab.count !== undefined && (
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                    {tab.count}
-                  </span>
-                )}
-                {tab.badge && (
-                  <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                    tab.id === 'ai-eval' 
-                      ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                      : tab.id === 'money'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                  }`}>
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* Navigation Tabs Bar */}
+        <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar text-xs font-medium">
+          <button
+            id="tab-habits"
+            onClick={() => setActiveTab('habits')}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'habits'
+                ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/25'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Daily Routines &amp; Habits</span>
+          </button>
+
+          <button
+            id="tab-money"
+            onClick={() => setActiveTab('money')}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'money'
+                ? 'bg-emerald-600 text-white font-bold shadow-md shadow-emerald-600/25'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <Wallet className="w-4 h-4" />
+            <span>Money &amp; Personal Finance</span>
+          </button>
+
+          <button
+            id="tab-ai-eval"
+            onClick={() => setActiveTab('ai-eval')}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'ai-eval'
+                ? 'bg-indigo-500 text-white font-bold shadow-md shadow-indigo-500/25'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>5D AI Life Evaluation</span>
+          </button>
+
+          <button
+            id="tab-career"
+            onClick={() => setActiveTab('career')}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'career'
+                ? 'bg-amber-600 text-white font-bold shadow-md shadow-amber-600/25'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <Flame className="w-4 h-4" />
+            <span>SWE Career Progression</span>
+          </button>
         </div>
       </div>
     </header>

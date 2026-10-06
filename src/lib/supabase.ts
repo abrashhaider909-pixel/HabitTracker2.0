@@ -1,110 +1,165 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Habit, Transaction, CareerMilestone, AIEvaluationResult, SupabaseConfig } from '../types';
+import { Habit, Transaction, CareerMilestone, AIEvaluationResult, SupabaseConfig, TransactionType } from '../types';
 
-const STORAGE_KEY_CONFIG = 'habitpulse_supabase_config';
 const STORAGE_KEY_HABITS = 'habitpulse_habits_v1';
 const STORAGE_KEY_TRANSACTIONS = 'habitpulse_transactions_v1';
 const STORAGE_KEY_EVALUATIONS = 'habitpulse_evaluations_v1';
 const STORAGE_KEY_CAREER = 'habitpulse_career_v1';
 
 let activeSupabaseClient: SupabaseClient | null = null;
+let lastClientKey: string = '';
 
-export function getSavedSupabaseConfig(): SupabaseConfig {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_CONFIG);
-    if (raw) {
-      return JSON.parse(raw);
-    }
-  } catch (e) {
-    console.error('Failed to parse saved Supabase config', e);
-  }
-  return {
-    url: (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) || '',
-    anonKey: (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || '',
-    isConnected: false,
-  };
+export function isValidUUID(str?: string | null): boolean {
+  if (!str || typeof str !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str)
+    || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }
 
-export function saveSupabaseConfig(config: SupabaseConfig): void {
+export function getRefFromJwt(jwt?: string | null): string | null {
+  if (!jwt || typeof jwt !== 'string') return null;
   try {
-    localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
-    if (config.url && config.anonKey) {
-      activeSupabaseClient = createClient(config.url, config.anonKey);
-    } else {
-      activeSupabaseClient = null;
+    const parts = jwt.split('.');
+    if (parts.length >= 2) {
+      let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+      const decoded = typeof atob === 'function'
+        ? atob(base64)
+        : Buffer.from(base64, 'base64').toString('utf-8');
+      const parsed = JSON.parse(decoded);
+      return parsed.ref || null;
     }
-  } catch (e) {
-    console.error('Failed to save Supabase config', e);
-  }
-}
-
-export function getSupabaseClient(): SupabaseClient | null {
-  if (activeSupabaseClient) return activeSupabaseClient;
-  const config = getSavedSupabaseConfig();
-  if (config.url && config.anonKey) {
-    try {
-      activeSupabaseClient = createClient(config.url, config.anonKey);
-      return activeSupabaseClient;
-    } catch (e) {
-      console.error('Error creating Supabase client:', e);
-    }
+  } catch {
+    // Ignore decode errors
   }
   return null;
 }
 
-export function isSupabaseConfigured(): boolean {
-  return getSupabaseClient() !== null;
+export function getRefFromUrl(url?: string | null): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const match = url.match(/https?:\/\/([^.]+)\.supabase\.co/i);
+  return match ? match[1].toLowerCase() : null;
 }
 
-export async function testSupabaseConnection(url: string, anonKey: string): Promise<{ success: boolean; message: string }> {
+const DEFAULT_SUPABASE_URL = 'https://ouulqzyyjlbovrlffkfg.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91dWxxenl5amxib3ZybGZma2ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyOTQ4NTUsImV4cCI6MjEwNDg3MDg1NX0.B8MXHt5jiiewOyFBIkTSCfdCJu6UIS6Qu3z_RS7-oqo';
+
+// Internal Supabase configuration - connected directly to user project ouulqzyyjlbovrlffkfg
+export function getInternalSupabaseCredentials(): { url: string; anonKey: string } {
+  const envKey = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_ANON_KEY) || '';
+  const envUrl = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SUPABASE_URL) || '';
+
+  const keyRef = getRefFromJwt(envKey);
+  const anonKey = (keyRef === 'ouulqzyyjlbovrlffkfg') ? envKey : DEFAULT_SUPABASE_ANON_KEY;
+  const url = (envUrl && envUrl.includes('ouulqzyyjlbovrlffkfg')) ? envUrl : DEFAULT_SUPABASE_URL;
+
+  return {
+    url,
+    anonKey,
+  };
+}
+
+export function getSupabaseClient(): SupabaseClient | null {
+  const { url, anonKey } = getInternalSupabaseCredentials();
+  if (!url || !anonKey) {
+    return null;
+  }
+
+  const clientKey = `${url}::${anonKey}`;
+  if (activeSupabaseClient && lastClientKey === clientKey) {
+    return activeSupabaseClient;
+  }
+
   try {
-    if (!url.startsWith('https://')) {
-      return { success: false, message: 'URL must begin with https://' };
-    }
-    const client = createClient(url, anonKey);
-    // Ping habits or query table
-    const { error } = await client.from('habits').select('id').limit(1);
-    if (error) {
-      // If table doesn't exist yet, it's still connected to Supabase project
-      if (error.code === '42P01' || error.message.includes('relation "public.habits" does not exist')) {
-        return {
-          success: true,
-          message: 'Connected to Supabase! Run the provided SQL Schema in your SQL Editor to create tables.',
-        };
-      }
-      return { success: false, message: error.message };
-    }
-    return { success: true, message: 'Successfully connected and verified database access!' };
-  } catch (err: any) {
-    return { success: false, message: err.message || 'Failed to connect to Supabase' };
+    activeSupabaseClient = createClient(url, anonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    });
+    lastClientKey = clientKey;
+    return activeSupabaseClient;
+  } catch (e) {
+    console.error('Error initializing internal Supabase client:', e);
+    return null;
   }
 }
 
-// Local Storage helpers for seamless offline/local use with user isolation
+export function isSupabaseConfigured(): boolean {
+  const { url, anonKey } = getInternalSupabaseCredentials();
+  return Boolean(url && anonKey);
+}
+
+// Storage helpers scoped to user with record preservation fallback
 function getScopedKey(baseKey: string, userId?: string): string {
   return userId ? `${baseKey}_${userId}` : baseKey;
 }
 
-export function getLocalHabits(fallback: Habit[], userId?: string): Habit[] {
+export function getLocalHabits(fallback: Habit[] = [], userId?: string): Habit[] {
   try {
-    const key = getScopedKey(STORAGE_KEY_HABITS, userId);
-    const data = localStorage.getItem(key);
-    if (data) return JSON.parse(data);
-    // Fallback to base key if scoped not found yet
     if (userId) {
+      const key = getScopedKey(STORAGE_KEY_HABITS, userId);
+      const data = localStorage.getItem(key);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+
+      // Record preservation: check if data exists in prior guest or base keys
+      const guestData = localStorage.getItem(`${STORAGE_KEY_HABITS}_guest-demo-user`);
+      if (guestData) {
+        const parsed = JSON.parse(guestData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localStorage.setItem(key, guestData);
+          return parsed;
+        }
+      }
+
+      const baseData = localStorage.getItem(STORAGE_KEY_HABITS);
+      if (baseData) {
+        const parsed = JSON.parse(baseData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localStorage.setItem(key, baseData);
+          return parsed;
+        }
+      }
+
+      // Check any other existing habit keys in localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(STORAGE_KEY_HABITS)) {
+          const val = localStorage.getItem(k);
+          if (val) {
+            try {
+              const parsed = JSON.parse(val);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                localStorage.setItem(key, val);
+                return parsed;
+              }
+            } catch {}
+          }
+        }
+      }
+
+      return [];
+    } else {
       const baseData = localStorage.getItem(STORAGE_KEY_HABITS);
       if (baseData) return JSON.parse(baseData);
     }
   } catch (e) {
-    console.error(e);
+    console.error('Failed to read local habits:', e);
   }
-  return fallback;
+  return userId ? [] : fallback;
 }
 
 export function saveLocalHabits(habits: Habit[], userId?: string): void {
   try {
     const key = getScopedKey(STORAGE_KEY_HABITS, userId);
     localStorage.setItem(key, JSON.stringify(habits));
+    // Also maintain base key for safety
+    localStorage.setItem(STORAGE_KEY_HABITS, JSON.stringify(habits));
   } catch (e) {
     console.error(e);
   }
@@ -112,23 +167,49 @@ export function saveLocalHabits(habits: Habit[], userId?: string): void {
 
 export function getLocalTransactions(fallback: Transaction[], userId?: string): Transaction[] {
   try {
-    const key = getScopedKey(STORAGE_KEY_TRANSACTIONS, userId);
-    const data = localStorage.getItem(key);
-    if (data) return JSON.parse(data);
     if (userId) {
+      const key = getScopedKey(STORAGE_KEY_TRANSACTIONS, userId);
+      const data = localStorage.getItem(key);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) return parsed;
+      }
+
+      // Record preservation: check if previous transactions were stored under guest or base key
+      const guestData = localStorage.getItem(`${STORAGE_KEY_TRANSACTIONS}_guest-demo-user`);
+      if (guestData) {
+        const parsed = JSON.parse(guestData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localStorage.setItem(key, guestData);
+          return parsed;
+        }
+      }
+
       const baseData = localStorage.getItem(STORAGE_KEY_TRANSACTIONS);
-      if (baseData) return JSON.parse(baseData);
+      if (baseData) {
+        const parsed = JSON.parse(baseData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localStorage.setItem(key, baseData);
+          return parsed;
+        }
+      }
+
+      return [];
     }
+
+    const baseData = localStorage.getItem(STORAGE_KEY_TRANSACTIONS);
+    if (baseData) return JSON.parse(baseData);
   } catch (e) {
-    console.error(e);
+    console.error('Failed to read local transactions:', e);
   }
-  return fallback;
+  return userId ? [] : fallback;
 }
 
 export function saveLocalTransactions(transactions: Transaction[], userId?: string): void {
   try {
     const key = getScopedKey(STORAGE_KEY_TRANSACTIONS, userId);
     localStorage.setItem(key, JSON.stringify(transactions));
+    localStorage.setItem(STORAGE_KEY_TRANSACTIONS, JSON.stringify(transactions));
   } catch (e) {
     console.error(e);
   }
@@ -136,10 +217,23 @@ export function saveLocalTransactions(transactions: Transaction[], userId?: stri
 
 export function getLocalEvaluations(fallback: Record<string, AIEvaluationResult>, userId?: string): Record<string, AIEvaluationResult> {
   try {
-    const key = getScopedKey(STORAGE_KEY_EVALUATIONS, userId);
-    const data = localStorage.getItem(key);
-    if (data) return JSON.parse(data);
     if (userId) {
+      const key = getScopedKey(STORAGE_KEY_EVALUATIONS, userId);
+      const data = localStorage.getItem(key);
+      if (data) return JSON.parse(data);
+
+      const guestData = localStorage.getItem(`${STORAGE_KEY_EVALUATIONS}_guest-demo-user`);
+      if (guestData) {
+        localStorage.setItem(key, guestData);
+        return JSON.parse(guestData);
+      }
+
+      const baseData = localStorage.getItem(STORAGE_KEY_EVALUATIONS);
+      if (baseData) {
+        localStorage.setItem(key, baseData);
+        return JSON.parse(baseData);
+      }
+    } else {
       const baseData = localStorage.getItem(STORAGE_KEY_EVALUATIONS);
       if (baseData) return JSON.parse(baseData);
     }
@@ -153,6 +247,7 @@ export function saveLocalEvaluations(evaluations: Record<string, AIEvaluationRes
   try {
     const key = getScopedKey(STORAGE_KEY_EVALUATIONS, userId);
     localStorage.setItem(key, JSON.stringify(evaluations));
+    localStorage.setItem(STORAGE_KEY_EVALUATIONS, JSON.stringify(evaluations));
   } catch (e) {
     console.error(e);
   }
@@ -160,10 +255,32 @@ export function saveLocalEvaluations(evaluations: Record<string, AIEvaluationRes
 
 export function getLocalCareerMilestones(fallback: CareerMilestone[], userId?: string): CareerMilestone[] {
   try {
-    const key = getScopedKey(STORAGE_KEY_CAREER, userId);
-    const data = localStorage.getItem(key);
-    if (data) return JSON.parse(data);
     if (userId) {
+      const key = getScopedKey(STORAGE_KEY_CAREER, userId);
+      const data = localStorage.getItem(key);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+
+      const guestData = localStorage.getItem(`${STORAGE_KEY_CAREER}_guest-demo-user`);
+      if (guestData) {
+        const parsed = JSON.parse(guestData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localStorage.setItem(key, guestData);
+          return parsed;
+        }
+      }
+
+      const baseData = localStorage.getItem(STORAGE_KEY_CAREER);
+      if (baseData) {
+        const parsed = JSON.parse(baseData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localStorage.setItem(key, baseData);
+          return parsed;
+        }
+      }
+    } else {
       const baseData = localStorage.getItem(STORAGE_KEY_CAREER);
       if (baseData) return JSON.parse(baseData);
     }
@@ -177,55 +294,174 @@ export function saveLocalCareerMilestones(milestones: CareerMilestone[], userId?
   try {
     const key = getScopedKey(STORAGE_KEY_CAREER, userId);
     localStorage.setItem(key, JSON.stringify(milestones));
+    localStorage.setItem(STORAGE_KEY_CAREER, JSON.stringify(milestones));
   } catch (e) {
     console.error(e);
   }
 }
 
-// Fetch user habits from Supabase if connected
-export async function fetchRemoteUserData(userId: string): Promise<{
+// Fetch user transactions specifically from Supabase
+export async function fetchRemoteTransactions(userId?: string): Promise<{
+  transactions: Transaction[];
+  tableExists: boolean;
+  error?: string;
+}> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { transactions: [], tableExists: false, error: 'Supabase client is not configured' };
+  }
+
+  try {
+    let authUid: string | null = null;
+    try {
+      const { data: sessionData } = await client.auth.getSession();
+      authUid = sessionData?.session?.user?.id || null;
+    } catch {
+      // Session fetch silent fallback
+    }
+
+    const effectiveUserId = authUid || (userId && isValidUUID(userId) ? userId : null);
+
+    let rows: any[] | null = null;
+    let queryError: any = null;
+
+    // Fetch all transactions from Supabase
+    const txRes = await client
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (!txRes.error && txRes.data) {
+      rows = txRes.data;
+    } else {
+      queryError = txRes.error;
+    }
+
+    // Check if table missing
+    if (queryError) {
+      const isTableMissing =
+        queryError.code === '42P01' ||
+        queryError.code === 'PGRST205' ||
+        queryError.message?.toLowerCase().includes('not find') ||
+        queryError.message?.toLowerCase().includes('does not exist');
+
+      return {
+        transactions: [],
+        tableExists: !isTableMissing,
+        error: queryError.message,
+      };
+    }
+
+    if (rows) {
+      const mapped: Transaction[] = rows.map((t: any, index: number) => {
+        let rawType = String(t.type || '').toLowerCase();
+        let normalizedType: TransactionType = 'expense';
+        if (rawType.includes('inc') || rawType === 'credit') {
+          normalizedType = 'income';
+        } else if (rawType.includes('sav') || rawType.includes('invest')) {
+          normalizedType = 'savings';
+        } else {
+          normalizedType = 'expense';
+        }
+
+        return {
+          id: t.id ? String(t.id) : `tx-sb-${index}-${Date.now()}`,
+          type: normalizedType,
+          amount: Math.abs(Number(t.amount ?? t.value ?? t.total ?? 0)),
+          category: String(t.category || t.category_name || t.categoryName || 'General'),
+          description: String(t.description || t.name || t.title || t.notes || 'Transaction'),
+          date: t.date || (t.created_at ? String(t.created_at).split('T')[0] : new Date().toISOString().split('T')[0]),
+          paymentMethod: String(t.payment_method || t.paymentMethod || t.channel || 'Card'),
+          createdAt: t.created_at || t.createdAt || new Date().toISOString(),
+        };
+      });
+
+      return {
+        transactions: mapped,
+        tableExists: true,
+      };
+    }
+
+    return {
+      transactions: [],
+      tableExists: true,
+    };
+  } catch (err: any) {
+    return {
+      transactions: [],
+      tableExists: false,
+      error: err.message || 'Failed to query Supabase transactions',
+    };
+  }
+}
+
+// Fetch all remote user data (habits and transactions)
+export async function fetchRemoteUserData(userId?: string): Promise<{
   habits?: Habit[];
   transactions?: Transaction[];
+  tableExists?: { habits: boolean; transactions: boolean };
   error?: string;
 }> {
   const client = getSupabaseClient();
   if (!client) return {};
 
   try {
-    const [habitsRes, txRes] = await Promise.all([
-      client.from('habits').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
-      client.from('transactions').select('*').eq('user_id', userId).order('date', { ascending: false }),
-    ]);
+    const txResult = await fetchRemoteTransactions(userId);
 
-    const result: { habits?: Habit[]; transactions?: Transaction[] } = {};
+    let habitsRows: any[] | null = null;
+    let habitsError: any = null;
 
-    if (habitsRes.data && habitsRes.data.length > 0) {
-      result.habits = habitsRes.data.map(h => ({
-        id: h.id,
+    // Fetch all habits from Supabase
+    const hRes = await client
+      .from('habits')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!hRes.error && hRes.data) {
+      habitsRows = hRes.data;
+    } else {
+      habitsError = hRes.error;
+    }
+
+    const result: {
+      habits?: Habit[];
+      transactions?: Transaction[];
+      tableExists?: { habits: boolean; transactions: boolean };
+      error?: string;
+    } = {
+      transactions: txResult.transactions,
+      tableExists: {
+        transactions: txResult.tableExists,
+        habits: !habitsError || (!habitsError.message?.includes('not find') && habitsError.code !== '42P01'),
+      },
+    };
+
+    if (txResult.error) {
+      result.error = txResult.error;
+    }
+
+    if (habitsRows && habitsRows.length > 0) {
+      const habitMap = new Map<string, any>();
+      for (const h of habitsRows) {
+        const key = (h.title || '').trim().toLowerCase();
+        if (!habitMap.has(key) || (new Date(h.created_at).getTime() > new Date(habitMap.get(key).created_at).getTime())) {
+          habitMap.set(key, h);
+        }
+      }
+      const uniqueHabits = Array.from(habitMap.values());
+      result.habits = uniqueHabits.map((h: any) => ({
+        id: String(h.id),
         title: h.title,
         description: h.description,
         category: h.category,
-        isDaily: h.is_daily,
+        isDaily: h.is_daily ?? true,
         completedDates: h.completed_dates || [],
-        targetDurationMinutes: h.target_duration_minutes,
-        timeOfDay: h.time_of_day,
-        priority: h.priority,
+        targetDurationMinutes: h.target_duration_minutes || 30,
+        timeOfDay: h.time_of_day || 'anytime',
+        priority: h.priority || 'medium',
         streak: h.streak || 0,
         bestStreak: h.best_streak || 0,
-        createdAt: h.created_at,
-      }));
-    }
-
-    if (txRes.data && txRes.data.length > 0) {
-      result.transactions = txRes.data.map(t => ({
-        id: t.id,
-        type: t.type,
-        amount: Number(t.amount),
-        category: t.category,
-        description: t.description,
-        date: t.date,
-        paymentMethod: t.payment_method,
-        createdAt: t.created_at,
+        createdAt: h.created_at || new Date().toISOString(),
       }));
     }
 
@@ -235,19 +471,107 @@ export async function fetchRemoteUserData(userId: string): Promise<{
   }
 }
 
-export async function upsertHabitToSupabase(
-  habit: Habit,
-  userId: string
+// Save or Upsert single Transaction to Supabase
+export async function upsertTransactionToSupabase(
+  tx: Transaction,
+  userId?: string
+): Promise<{ success: boolean; message: string; insertedId?: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: true, message: 'Local storage mode.' };
+  }
+
+  try {
+    let authUid: string | null = null;
+    try {
+      const { data: sessionData } = await client.auth.getSession();
+      authUid = sessionData?.session?.user?.id || null;
+    } catch {
+      // Ignore
+    }
+
+    const effectiveUserId = authUid || (userId && isValidUUID(userId) ? userId : undefined);
+
+    const payload: any = {
+      type: tx.type,
+      amount: Number(tx.amount),
+      category: tx.category,
+      description: tx.description,
+      date: tx.date,
+      payment_method: tx.paymentMethod || 'Card',
+    };
+
+    if (isValidUUID(tx.id)) {
+      payload.id = tx.id;
+    }
+    if (effectiveUserId) {
+      payload.user_id = effectiveUserId;
+    }
+
+    const { data, error } = await client.from('transactions').upsert(payload).select().single();
+    if (error) {
+      const insertRes = await client.from('transactions').insert(payload).select().single();
+      if (insertRes.error) {
+        return { success: false, message: insertRes.error.message };
+      }
+      return { success: true, message: 'Saved to Supabase', insertedId: insertRes.data?.id };
+    }
+
+    return { success: true, message: 'Saved to Supabase', insertedId: data?.id };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to save transaction to Supabase' };
+  }
+}
+
+// Delete single Transaction from Supabase
+export async function deleteTransactionFromSupabase(
+  transactionId: string,
+  userId?: string
 ): Promise<{ success: boolean; message: string }> {
   const client = getSupabaseClient();
-  if (!client || !userId) {
+  if (!client) {
+    return { success: true, message: 'Local delete only.' };
+  }
+
+  try {
+    let query = client.from('transactions').delete().eq('id', transactionId);
+
+    if (userId && isValidUUID(userId)) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { error } = await query;
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return { success: true, message: 'Transaction removed from Supabase' };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Delete failed' };
+  }
+}
+
+// Upsert Habit to Supabase
+export async function upsertHabitToSupabase(
+  habit: Habit,
+  userId?: string
+): Promise<{ success: boolean; message: string }> {
+  const client = getSupabaseClient();
+  if (!client) {
     return { success: true, message: 'Local mode only.' };
   }
 
   try {
-    const payload = {
-      ...(habit.id.includes('-') && habit.id.length > 20 ? { id: habit.id } : {}),
-      user_id: userId && userId.includes('-') ? userId : undefined,
+    let authUid: string | null = null;
+    try {
+      const { data: sessionData } = await client.auth.getSession();
+      authUid = sessionData?.session?.user?.id || null;
+    } catch {
+      // Ignore
+    }
+
+    const effectiveUserId = authUid || (userId && isValidUUID(userId) ? userId : undefined);
+
+    const payload: any = {
       title: habit.title,
       description: habit.description,
       category: habit.category,
@@ -260,6 +584,13 @@ export async function upsertHabitToSupabase(
       best_streak: habit.bestStreak,
     };
 
+    if (isValidUUID(habit.id)) {
+      payload.id = habit.id;
+    }
+    if (effectiveUserId) {
+      payload.user_id = effectiveUserId;
+    }
+
     const { error } = await client.from('habits').upsert(payload);
     if (error) {
       return { success: false, message: error.message };
@@ -270,152 +601,27 @@ export async function upsertHabitToSupabase(
   }
 }
 
+// Delete Habit from Supabase
 export async function deleteHabitFromSupabase(
   habitId: string,
-  userId: string
-): Promise<{ success: boolean; message: string }> {
-  const client = getSupabaseClient();
-
-  if (!client) {
-    return {
-      success: true,
-      message: 'Supabase client is not configured (local delete only).',
-    };
-  }
-
-  if (!habitId || !userId) {
-    return {
-      success: false,
-      message: 'Habit ID and user ID are required.',
-    };
-  }
-
-  try {
-    const { error } = await client
-      .from('habits')
-      .delete()
-      .eq('id', habitId)
-      .eq('user_id', userId);
-
-    if (error) {
-      return {
-        success: false,
-        message: `Habit deletion failed: ${error.message}`,
-      };
-    }
-
-    return {
-      success: true,
-      message: 'Habit deleted from Supabase.',
-    };
-  } catch (err: any) {
-    return {
-      success: false,
-      message: err.message || 'Habit deletion failed.',
-    };
-  }
-}
-// Sync all data to remote Supabase if connected
-
-export async function deleteTransactionFromSupabase(
-  transactionId: string,
-  userId: string
-): Promise<{ success: boolean; message: string }> {
-  const client = getSupabaseClient();
-
-  if (!client) {
-    return {
-      success: true,
-      message: 'Supabase client is not configured (local delete only).',
-    };
-  }
-
-  if (!transactionId || !userId) {
-    return {
-      success: false,
-      message: 'Transaction ID and user ID are required.',
-    };
-  }
-
-  try {
-    const { error } = await client
-      .from('transactions')
-      .delete()
-      .eq('id', transactionId)
-      .eq('user_id', userId);
-
-    if (error) {
-      return {
-        success: false,
-        message: `Transaction deletion failed: ${error.message}`,
-      };
-    }
-
-    return {
-      success: true,
-      message: 'Transaction deleted from Supabase.',
-    };
-  } catch (err: any) {
-    return {
-      success: false,
-      message: err.message || 'Transaction deletion failed.',
-    };
-  }
-}
-export async function syncAllToSupabase(
-  habits: Habit[],
-  transactions: Transaction[],
-  careerMilestones: CareerMilestone[],
   userId?: string
 ): Promise<{ success: boolean; message: string }> {
   const client = getSupabaseClient();
   if (!client) {
-    return { success: false, message: 'Supabase client is not configured.' };
+    return { success: true, message: 'Local delete only.' };
   }
 
   try {
-    // 1. Sync Habits
-    const habitsPayload = habits.map(h => ({
-      ...(h.id.includes('-') && h.id.length > 20 ? { id: h.id } : {}),
-      user_id: userId && userId.includes('-') ? userId : undefined,
-      title: h.title,
-      description: h.description,
-      category: h.category,
-      is_daily: h.isDaily,
-      completed_dates: h.completedDates,
-      target_duration_minutes: h.targetDurationMinutes || 30,
-      time_of_day: h.timeOfDay || 'anytime',
-      priority: h.priority,
-      streak: h.streak,
-      best_streak: h.bestStreak,
-    }));
-
-    const { error: habitsError } = await client.from('habits').upsert(habitsPayload);
-    if (habitsError) throw new Error(`Habits Sync Error: ${habitsError.message}`);
-
-    // 2. Sync Transactions
-    const txPayload = transactions.map(t => ({
-      ...(t.id.includes('-') && t.id.length > 20 ? { id: t.id } : {}),
-      user_id: userId && userId.includes('-') ? userId : undefined,
-      type: t.type,
-      amount: t.amount,
-      category: t.category,
-      description: t.description,
-      date: t.date,
-      payment_method: t.paymentMethod,
-    }));
-
-    const { error: txError } = await client.from('transactions').upsert(txPayload);
-    if (txError) throw new Error(`Transactions Sync Error: ${txError.message}`);
-
-    return {
-      success: true,
-      message: `Synchronized ${habits.length} habits and ${transactions.length} transactions to Supabase!`,
-    };
+    let query = client.from('habits').delete().eq('id', habitId);
+    if (userId && isValidUUID(userId)) {
+      query = query.eq('user_id', userId);
+    }
+    const { error } = await query;
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return { success: true, message: 'Habit deleted from Supabase.' };
   } catch (err: any) {
-    return { success: false, message: err.message || 'Sync failed' };
+    return { success: false, message: err.message || 'Delete failed.' };
   }
 }
-
-
-

@@ -4,28 +4,20 @@ import { HabitsTab } from './components/HabitsTab';
 import { MoneyTab } from './components/MoneyTab';
 import { AIEvalTab } from './components/AIEvalTab';
 import { CareerTab } from './components/CareerTab';
-import { SupabaseModal } from './components/SupabaseModal';
+import { LoginPage } from './components/LoginPage';
 import { HabitModal } from './components/HabitModal';
 import { TransactionModal } from './components/TransactionModal';
 import { AICoachModal } from './components/AICoachModal';
-import { AuthModal } from './components/AuthModal';
 import { NotificationModal } from './components/NotificationModal';
 import { 
   Habit, 
   Transaction, 
   CareerMilestone, 
   AIEvaluationResult, 
-  SupabaseConfig, 
   LifeDimension,
   AuthUser,
   NotificationSettings
 } from './types';
-import { 
-  INITIAL_HABITS, 
-  INITIAL_TRANSACTIONS, 
-  INITIAL_CAREER_MILESTONES, 
-  INITIAL_EVALUATION 
-} from './lib/initialData';
 import { 
   getLocalHabits, 
   saveLocalHabits, 
@@ -35,14 +27,12 @@ import {
   saveLocalEvaluations, 
   getLocalCareerMilestones, 
   saveLocalCareerMilestones, 
-  getSavedSupabaseConfig, 
-  saveSupabaseConfig,
   isSupabaseConfigured,
   fetchRemoteUserData,
   upsertHabitToSupabase,
   deleteHabitFromSupabase,
-  deleteTransactionFromSupabase,
-  syncAllToSupabase
+  upsertTransactionToSupabase,
+  deleteTransactionFromSupabase
 } from './lib/supabase';
 import { 
   getSavedAuthUser, 
@@ -59,7 +49,7 @@ import {
 } from './lib/notifications';
 import { calculateHabitStreak, toggleHabitCompletion, isHabitCompleted } from './lib/streaks';
 import { getTodayDateStr } from './lib/dateUtils';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function App() {
   const getTodayISO = () => getTodayDateStr();
@@ -69,67 +59,70 @@ export default function App() {
 
   // Authentication State
   const [user, setUser] = useState<AuthUser | null>(() => getSavedAuthUser());
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAuthInitializing, setIsAuthInitializing] = useState(true);
 
   // Push Notification Settings State
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() => getStoredNotificationSettings());
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const lastTriggeredMinuteRef = useRef<string>('');
-  const lastLoadedUserIdRef = useRef<string | null>(getSavedAuthUser()?.id || 'guest-demo-user');
+  const lastLoadedUserIdRef = useRef<string | null>(null);
 
   // Core Data States (Scoped to active user for data privacy & persistence)
   const [habits, setHabits] = useState<Habit[]>(() => {
     const initialUser = getSavedAuthUser();
-    return getLocalHabits(INITIAL_HABITS, initialUser?.id);
+    return getLocalHabits([], initialUser?.id);
   });
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const initialUser = getSavedAuthUser();
-    return getLocalTransactions(INITIAL_TRANSACTIONS, initialUser?.id);
+    return getLocalTransactions([], initialUser?.id);
   });
   const [evaluations, setEvaluations] = useState<Record<string, AIEvaluationResult>>(() => {
     const initialUser = getSavedAuthUser();
-    const today = getTodayDateStr();
-    const loaded = getLocalEvaluations({ [today]: INITIAL_EVALUATION }, initialUser?.id);
-    if (!loaded[today]) {
-      loaded[today] = { ...INITIAL_EVALUATION, date: today };
-    }
-    return loaded;
+    return getLocalEvaluations({}, initialUser?.id);
   });
   const [careerMilestones, setCareerMilestones] = useState<CareerMilestone[]>(() => {
     const initialUser = getSavedAuthUser();
-    return getLocalCareerMilestones(INITIAL_CAREER_MILESTONES, initialUser?.id);
+    return getLocalCareerMilestones([], initialUser?.id);
   });
-  const [supabaseConfig, setSupabaseConfigState] = useState<SupabaseConfig>(() => getSavedSupabaseConfig());
 
   // Modals
   const [isHabitModalOpen, setIsHabitModalOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
-  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isCoachModalOpen, setIsCoachModalOpen] = useState(false);
   const [coachInitialPrompt, setCoachInitialPrompt] = useState<string>('');
 
   // Toast Feedback
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Initialize Auth & listen to auth state changes
+  // Initialize Auth & listen to auth state changes across tabs/refreshes
   useEffect(() => {
     let mounted = true;
-    initializeAuth().then((authUser) => {
-      if (mounted && authUser) {
-        setUser(authUser);
-      }
-    });
+    initializeAuth()
+      .then((authUser) => {
+        if (mounted) {
+          setUser(authUser);
+          setIsAuthInitializing(false);
+        }
+      })
+      .catch((err) => {
+        console.warn('Auth initialization notice:', err);
+        if (mounted) {
+          setIsAuthInitializing(false);
+        }
+      });
 
     const unsubscribe = onAuthStateChange((updatedUser) => {
       if (mounted) {
         setUser(updatedUser);
+        setIsAuthInitializing(false);
       }
     });
 
@@ -139,47 +132,45 @@ export default function App() {
     };
   }, []);
 
-  // Reload user data when active user account changes
+  // Fetch live Supabase records on mount
   useEffect(() => {
     let cancelled = false;
-    const currentUserId = user?.id || 'guest-demo-user';
+    fetchRemoteUserData().then((remote) => {
+      if (cancelled) return;
+      if (remote.habits && remote.habits.length > 0) {
+        setHabits(remote.habits);
+      }
+      if (remote.transactions && remote.transactions.length > 0) {
+        setTransactions(remote.transactions);
+      }
+    }).catch(console.warn);
 
-    // Only reload if the user identity has actually switched to a different account
-    if (lastLoadedUserIdRef.current === currentUserId && user?.isGuest) {
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Reload user data when active user account changes or on login
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) {
+      lastLoadedUserIdRef.current = null;
+      return;
+    }
+
+    const currentUserId = user.id;
+    if (lastLoadedUserIdRef.current === currentUserId) {
       return;
     }
     lastLoadedUserIdRef.current = currentUserId;
 
     const loadUserData = async () => {
-      const userId = user?.id;
+      // 1. Load local cached data for this user
+      const loadedHabits = getLocalHabits([], currentUserId);
+      const loadedTransactions = getLocalTransactions([], currentUserId);
 
-      console.log("HABITPULSE DEBUG - App user:", {
-        id: user?.id,
-        email: user?.email,
-        isGuest: user?.isGuest
-      });
-
-      // Load local data first
-      const loadedHabits = getLocalHabits(INITIAL_HABITS, userId);
-      const loadedTransactions = getLocalTransactions(INITIAL_TRANSACTIONS, userId);
-
-      const today = getTodayISO();
-      const loadedEvals = getLocalEvaluations(
-        { [today]: INITIAL_EVALUATION },
-        userId
-      );
-
-      if (!loadedEvals[today]) {
-        loadedEvals[today] = {
-          ...INITIAL_EVALUATION,
-          date: today,
-        };
-      }
-
-      const loadedMilestones = getLocalCareerMilestones(
-        INITIAL_CAREER_MILESTONES,
-        userId
-      );
+      const loadedEvals = getLocalEvaluations({}, currentUserId);
+      const loadedMilestones = getLocalCareerMilestones([], currentUserId);
 
       if (cancelled) return;
 
@@ -188,34 +179,35 @@ export default function App() {
       setEvaluations(loadedEvals);
       setCareerMilestones(loadedMilestones);
 
-      // Load cloud data for logged-in users when Supabase is configured
-      if (userId && !user?.isGuest && isSupabaseConfigured()) {
+      // 2. Fetch live cloud data from Supabase
+      if (isSupabaseConfigured()) {
         try {
-          const remote = await fetchRemoteUserData(userId);
-
+          const remote = await fetchRemoteUserData(currentUserId);
           if (cancelled) return;
 
-          if (remote.error) {
-            console.warn('Could not load Supabase data:', remote.error);
-            return;
-          }
-
-          if (remote.habits) {
+          // Safe habit merge: prioritize remote records if available; otherwise preserve local records and sync
+          if (remote.habits && remote.habits.length > 0) {
             setHabits(remote.habits);
-            saveLocalHabits(remote.habits, userId);
+            saveLocalHabits(remote.habits, currentUserId);
+          } else if (loadedHabits.length > 0) {
+            setHabits(loadedHabits);
+            for (const h of loadedHabits) {
+              upsertHabitToSupabase(h, currentUserId).catch(() => {});
+            }
           }
 
-          if (remote.transactions) {
+          // Safe transaction merge: prioritize remote records if available; otherwise preserve local records and sync
+          if (remote.transactions && remote.transactions.length > 0) {
             setTransactions(remote.transactions);
-            saveLocalTransactions(remote.transactions, userId);
+            saveLocalTransactions(remote.transactions, currentUserId);
+          } else if (loadedTransactions.length > 0) {
+            setTransactions(loadedTransactions);
+            for (const tx of loadedTransactions) {
+              upsertTransactionToSupabase(tx, currentUserId).catch(() => {});
+            }
           }
-
-          console.log('Supabase data loaded successfully:', {
-            habits: remote.habits?.length ?? 0,
-            transactions: remote.transactions?.length ?? 0,
-          });
         } catch (error) {
-          console.warn('Notice loading Supabase data:', error);
+          console.warn('Notice loading Supabase user data:', error);
         }
       }
     };
@@ -225,27 +217,36 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [user]);
+
   // Sync to local storage scoped to user
   useEffect(() => {
-    saveLocalHabits(habits, user?.id);
+    if (user?.id) {
+      saveLocalHabits(habits, user.id);
+    }
   }, [habits, user?.id]);
 
   useEffect(() => {
-    saveLocalTransactions(transactions, user?.id);
+    if (user?.id) {
+      saveLocalTransactions(transactions, user.id);
+    }
   }, [transactions, user?.id]);
 
   useEffect(() => {
-    saveLocalEvaluations(evaluations, user?.id);
+    if (user?.id) {
+      saveLocalEvaluations(evaluations, user.id);
+    }
   }, [evaluations, user?.id]);
 
   useEffect(() => {
-    saveLocalCareerMilestones(careerMilestones, user?.id);
+    if (user?.id) {
+      saveLocalCareerMilestones(careerMilestones, user.id);
+    }
   }, [careerMilestones, user?.id]);
 
   // Push Notification Background Scheduler (checks every 20 seconds)
   useEffect(() => {
-    if (!notificationSettings.enabled) return;
+    if (!notificationSettings.enabled || !user) return;
 
     const checkSchedules = () => {
       const now = new Date();
@@ -258,9 +259,9 @@ export default function App() {
         return;
       }
 
-      const activeMatch = notificationSettings.schedules.find((s) => {
-        return s.enabled && s.time === currentHHMM && s.days.includes(currentDayOfWeek);
-      });
+      const activeMatch = notificationSettings.schedules.find(
+        (s) => s.enabled && s.time === currentHHMM && s.days.includes(currentDayOfWeek)
+      );
 
       if (activeMatch) {
         lastTriggeredMinuteRef.current = currentHHMM;
@@ -281,7 +282,7 @@ export default function App() {
     checkSchedules();
     const interval = setInterval(checkSchedules, 20000);
     return () => clearInterval(interval);
-  }, [notificationSettings]);
+  }, [notificationSettings, user]);
 
   const handleSaveNotificationSettings = (newSettings: NotificationSettings) => {
     setNotificationSettings(newSettings);
@@ -289,18 +290,18 @@ export default function App() {
     showToast('Push notification schedule updated');
   };
 
-  // Habit Handlers with mathematically exact streak recalculation
+  // Habit Handlers
   const handleToggleHabit = useCallback((habitId: string) => {
+    if (!user) return;
     setHabits((prev) => {
       const updated = prev.map((h) => {
         if (h.id !== habitId) return h;
         return toggleHabitCompletion(h, selectedDate);
       });
-      // Synchronous immediate disk write
-      saveLocalHabits(updated, user?.id);
+      saveLocalHabits(updated, user.id);
 
       const toggled = updated.find((h) => h.id === habitId);
-      if (toggled && user?.id && !user?.isGuest && isSupabaseConfigured()) {
+      if (toggled && isSupabaseConfigured()) {
         upsertHabitToSupabase(toggled, user.id).catch((err) => {
           console.warn('Background Supabase habit update notice:', err);
         });
@@ -309,20 +310,19 @@ export default function App() {
     });
 
     showToast('Routine status updated');
-  }, [selectedDate, user?.id, user?.isGuest]);
+  }, [selectedDate, user]);
 
-  // Toggle habit for any date (e.g. from 30-Day consistency heatmap or sparklines)
   const handleToggleHabitDate = useCallback((habitId: string, date: string) => {
+    if (!user) return;
     setHabits((prev) => {
       const updated = prev.map((h) => {
         if (h.id !== habitId) return h;
         return toggleHabitCompletion(h, date);
       });
-      // Synchronous immediate disk write
-      saveLocalHabits(updated, user?.id);
+      saveLocalHabits(updated, user.id);
 
       const toggled = updated.find((h) => h.id === habitId);
-      if (toggled && user?.id && !user?.isGuest && isSupabaseConfigured()) {
+      if (toggled && isSupabaseConfigured()) {
         upsertHabitToSupabase(toggled, user.id).catch((err) => {
           console.warn('Background Supabase habit update notice:', err);
         });
@@ -331,37 +331,31 @@ export default function App() {
     });
 
     showToast(`Logged status for ${date}`);
-  }, [user?.id, user?.isGuest]);
+  }, [user]);
 
   const handleDeleteHabit = useCallback(async (habitId: string) => {
+    if (!user) return;
     setHabits((prev) => {
       const updated = prev.filter((h) => h.id !== habitId);
-      saveLocalHabits(updated, user?.id);
+      saveLocalHabits(updated, user.id);
       return updated;
     });
 
-    const currentUserId = user?.id;
-
-    if (currentUserId && !user?.isGuest && isSupabaseConfigured()) {
-      const result = await deleteHabitFromSupabase(habitId, currentUserId);
-
-      if (!result.success) {
-        console.warn('Failed to delete habit from Supabase:', result.message);
-        showToast('Habit removed locally, but Supabase deletion failed.', 'error');
-        return;
-      }
+    if (isSupabaseConfigured()) {
+      await deleteHabitFromSupabase(habitId, user.id);
     }
 
     showToast('Habit deleted', 'info');
-  }, [user?.id, user?.isGuest]);
+  }, [user]);
 
   const handleSaveHabit = useCallback((habitData: Partial<Habit>) => {
+    if (!user) return;
     if (editingHabit) {
       setHabits((prev) => {
         const updated = prev.map((h) => (h.id === editingHabit.id ? { ...h, ...habitData } as Habit : h));
-        saveLocalHabits(updated, user?.id);
+        saveLocalHabits(updated, user.id);
         const saved = updated.find(h => h.id === editingHabit.id);
-        if (saved && user?.id && !user?.isGuest && isSupabaseConfigured()) {
+        if (saved && isSupabaseConfigured()) {
           upsertHabitToSupabase(saved, user.id).catch(() => {});
         }
         return updated;
@@ -384,8 +378,8 @@ export default function App() {
       };
       setHabits((prev) => {
         const updated = [newHabit, ...prev];
-        saveLocalHabits(updated, user?.id);
-        if (user?.id && !user?.isGuest && isSupabaseConfigured()) {
+        saveLocalHabits(updated, user.id);
+        if (isSupabaseConfigured()) {
           upsertHabitToSupabase(newHabit, user.id).catch(() => {});
         }
         return updated;
@@ -393,44 +387,88 @@ export default function App() {
       showToast('New habit target created');
     }
     setEditingHabit(null);
-  }, [editingHabit, user?.id, user?.isGuest]);
+  }, [editingHabit, user]);
 
   // Transaction Handlers
-  const handleAddTransaction = useCallback((txData: Omit<Transaction, 'id' | 'createdAt'>) => {
+  const handleAddTransaction = useCallback(async (txData: Omit<Transaction, 'id' | 'createdAt'>) => {
+    if (!user) return;
+    const tempId = `tx-${Date.now()}`;
     const newTx: Transaction = {
       ...txData,
-      id: `tx-${Date.now()}`,
+      id: tempId,
       createdAt: new Date().toISOString(),
     };
+
+    // Immediate state update
     setTransactions((prev) => {
       const updated = [newTx, ...prev];
-      saveLocalTransactions(updated, user?.id);
+      saveLocalTransactions(updated, user.id);
       return updated;
     });
-    showToast(`Logged $${newTx.amount} ${newTx.type}`);
-  }, [user?.id]);
+    showToast(`Logged $${newTx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${newTx.type}`);
+
+    // Persist to Supabase
+    if (isSupabaseConfigured()) {
+      try {
+        const res = await upsertTransactionToSupabase(newTx, user.id);
+        if (res.success && res.insertedId && res.insertedId !== tempId) {
+          setTransactions((prev) => {
+            const updated = prev.map((t) => (t.id === tempId ? { ...t, id: String(res.insertedId) } : t));
+            saveLocalTransactions(updated, user.id);
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.warn('Supabase transaction save notice:', err);
+      }
+    }
+  }, [user]);
 
   const handleDeleteTransaction = useCallback(async (id: string) => {
+    if (!user) return;
     setTransactions((prev) => {
       const updated = prev.filter((t) => t.id !== id);
-      saveLocalTransactions(updated, user?.id);
+      saveLocalTransactions(updated, user.id);
       return updated;
     });
 
-    const currentUserId = user?.id;
-
-    if (currentUserId && !user?.isGuest && isSupabaseConfigured()) {
-      const result = await deleteTransactionFromSupabase(id, currentUserId);
-
-      if (!result.success) {
-        console.warn('Failed to delete transaction from Supabase:', result.message);
-        showToast('Transaction removed locally, but Supabase deletion failed.', 'error');
-        return;
-      }
+    if (isSupabaseConfigured()) {
+      await deleteTransactionFromSupabase(id, user.id);
     }
 
     showToast('Transaction deleted', 'info');
-  }, [user?.id, user?.isGuest]);
+  }, [user]);
+
+  // Pull latest data from Supabase on demand
+  const handleRefreshFromSupabase = useCallback(async () => {
+    if (!user) return;
+    setIsSyncingCloud(true);
+    try {
+      const remote = await fetchRemoteUserData(user.id);
+      if (remote.transactions && remote.transactions.length > 0) {
+        setTransactions(remote.transactions);
+        saveLocalTransactions(remote.transactions, user.id);
+      } else {
+        // Safe sync: if remote has 0 but local has items, sync local items to remote so nothing is lost
+        const local = getLocalTransactions([], user.id);
+        if (local.length > 0) {
+          setTransactions(local);
+          for (const tx of local) {
+            upsertTransactionToSupabase(tx, user.id).catch(() => {});
+          }
+        }
+      }
+      if (remote.habits && remote.habits.length > 0) {
+        setHabits(remote.habits);
+        saveLocalHabits(remote.habits, user.id);
+      }
+      showToast('Cloud synchronized successfully!', 'success');
+    } catch (err: any) {
+      showToast(`Sync notice: ${err.message || 'Check connection'}`, 'error');
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  }, [user]);
 
   // Career Milestone Handlers
   const handleToggleMilestone = useCallback((id: string) => {
@@ -470,7 +508,6 @@ export default function App() {
   const handleRunEvaluation = async (userNotes?: string) => {
     setIsEvaluating(true);
     try {
-      // Calculate category metric weights
       const dims: LifeDimension[] = ['education', 'religion', 'health', 'social', 'career'];
       const metrics: Record<string, number> = {};
 
@@ -547,21 +584,11 @@ export default function App() {
     }
   };
 
-  const handleSaveSupabaseConfig = async (cfg: SupabaseConfig) => {
-    setSupabaseConfigState(cfg);
-    saveSupabaseConfig(cfg);
-    if (cfg.isConnected && cfg.url && cfg.anonKey) {
-      await syncAllToSupabase(habits, transactions, careerMilestones, user?.id);
-      showToast('Synced all data to Supabase!');
-    } else {
-      showToast(cfg.isConnected ? 'Supabase cloud configuration saved!' : 'Config updated');
-    }
-  };
-
   const handleLogout = async () => {
     await authSignOut();
     setUser(null);
-    showToast('Signed out. Switched to guest workspace.', 'info');
+    lastLoadedUserIdRef.current = null;
+    showToast('Signed out of HabitPulse.', 'info');
   };
 
   const handleOpenCoachWithPrompt = (prompt?: string) => {
@@ -569,6 +596,36 @@ export default function App() {
     setIsCoachModalOpen(true);
   };
 
+  // 1. Initial Authentication Check Loading State
+  if (isAuthInitializing) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-emerald-400 flex items-center justify-center shadow-xl shadow-indigo-500/20 ring-1 ring-white/20">
+            <CheckCircle2 className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+            <span>Restoring secure session...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Unauthenticated User -> Dedicated Login / Account Creation Page
+  if (!user) {
+    return (
+      <LoginPage 
+        onAuthSuccess={(authUser) => {
+          setUser(authUser);
+          showToast(`Welcome to HabitPulse, ${authUser.displayName || 'friend'}!`);
+        }} 
+      />
+    );
+  }
+
+  // 3. Authenticated User -> Main Life OS Application
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white">
       {/* Toast Feedback */}
@@ -592,13 +649,10 @@ export default function App() {
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
         habits={habits}
-        supabaseConfig={supabaseConfig}
         user={user}
         notificationSettings={notificationSettings}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
         onOpenNotificationModal={() => setIsNotificationModalOpen(true)}
-        onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
         onOpenHabitModal={() => {
           setEditingHabit(null);
           setIsHabitModalOpen(true);
@@ -639,6 +693,8 @@ export default function App() {
             transactions={transactions}
             onAddTransaction={() => setIsTransactionModalOpen(true)}
             onDeleteTransaction={handleDeleteTransaction}
+            onRefreshSupabase={handleRefreshFromSupabase}
+            isSyncingSupabase={isSyncingCloud}
           />
         )}
 
@@ -659,51 +715,12 @@ export default function App() {
             milestones={careerMilestones}
             onToggleMilestone={handleToggleMilestone}
             onIncrementCount={handleIncrementMilestoneCount}
-            onOpenCoachModal={handleOpenCoachWithPrompt}
+            onAskCoachAboutTopic={(topic) => handleOpenCoachWithPrompt(`How should I prepare for and master "${topic}"?`)}
           />
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-400">HabitPulse SaaS</span>
-            <span>•</span>
-            <span>All-In-One Habit Tracker & Life OS</span>
-          </div>
-          <div className="flex items-center gap-4 text-[11px] text-slate-400">
-            <span>5 Life Dimensions</span>
-            <span>•</span>
-            <span>Push Notifications</span>
-            <span>•</span>
-            <span>Supabase Auth & Sync</span>
-            <span>•</span>
-            <span>30-Day Consistency Visualizer</span>
-          </div>
-        </div>
-      </footer>
-
       {/* Modals */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        currentUser={user}
-        supabaseConfig={supabaseConfig}
-        onOpenSupabaseConfig={() => setIsSupabaseModalOpen(true)}
-        onAuthSuccess={(authUser) => {
-          setUser(authUser);
-          showToast(`Welcome, ${authUser.displayName || authUser.email}!`);
-        }}
-      />
-
-      <NotificationModal
-        isOpen={isNotificationModalOpen}
-        onClose={() => setIsNotificationModalOpen(false)}
-        settings={notificationSettings}
-        onSaveSettings={handleSaveNotificationSettings}
-      />
-
       <HabitModal
         isOpen={isHabitModalOpen}
         onClose={() => setIsHabitModalOpen(false)}
@@ -718,33 +735,21 @@ export default function App() {
         defaultDate={selectedDate}
       />
 
-      <SupabaseModal
-        isOpen={isSupabaseModalOpen}
-        onClose={() => setIsSupabaseModalOpen(false)}
-        config={supabaseConfig}
-        onSaveConfig={handleSaveSupabaseConfig}
-        habits={habits}
-        transactions={transactions}
-        careerMilestones={careerMilestones}
-      />
-
       <AICoachModal
         isOpen={isCoachModalOpen}
         onClose={() => setIsCoachModalOpen(false)}
-        initialPrompt={coachInitialPrompt}
         habits={habits}
         transactions={transactions}
         careerMilestones={careerMilestones}
+        initialPrompt={coachInitialPrompt}
+      />
+
+      <NotificationModal
+        isOpen={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+        settings={notificationSettings}
+        onSaveSettings={handleSaveNotificationSettings}
       />
     </div>
   );
 }
-
-
-
-
-
-
-
-
-

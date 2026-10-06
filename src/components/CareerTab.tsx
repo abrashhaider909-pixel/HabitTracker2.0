@@ -244,7 +244,16 @@ export const CareerTab: React.FC<CareerTabProps> = ({
 
       {/* Milestones Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredMilestones.map((milestone) => {
+        {filteredMilestones.length === 0 ? (
+          <div className="col-span-1 md:col-span-2 py-12 px-4 text-center rounded-2xl bg-slate-900/40 border border-slate-800">
+            <Award className="w-10 h-10 mx-auto text-slate-500 mb-2.5" />
+            <h4 className="text-sm font-semibold text-white">No Career Milestones Yet</h4>
+            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              Track technical learning goals, system design concepts, and engineering milestones.
+            </p>
+          </div>
+        ) : (
+          filteredMilestones.map((milestone) => {
           const cfg = pillarConfig[milestone.pillar];
           const Icon = cfg.icon;
 
@@ -340,7 +349,7 @@ export const CareerTab: React.FC<CareerTabProps> = ({
               </div>
             </div>
           );
-        })}
+        }))}
       </div>
 
       {/* Suggested AI Prompts for SWE Growth */}

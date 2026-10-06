@@ -70,6 +70,8 @@ export interface SupabaseConfig {
   anonKey: string;
   isConnected: boolean;
   lastSyncedAt?: string;
+  error?: string;
+  statusMessage?: string;
 }
 
 export type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
