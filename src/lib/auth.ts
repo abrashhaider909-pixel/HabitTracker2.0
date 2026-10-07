@@ -311,11 +311,8 @@ export async function signInWithGoogle(customEmail?: string): Promise<{
     ? customEmail.trim()
     : 'abrashhaider909@gmail.com').toLowerCase();
 
-  const isDefaultUser = targetEmail === 'abrashhaider909@gmail.com';
   const rawPrefix = targetEmail.split('@')[0];
-  const formattedName = isDefaultUser 
-    ? 'Abrash Haider' 
-    : rawPrefix.charAt(0).toUpperCase() + rawPrefix.slice(1);
+  const formattedName = rawPrefix.charAt(0).toUpperCase() + rawPrefix.slice(1);
   const stableId = getStableUserId(targetEmail);
 
   const googleUser: AuthUser = {

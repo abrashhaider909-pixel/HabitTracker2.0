@@ -27,6 +27,7 @@ interface HeaderProps {
   onOpenHabitModal: () => void;
   onOpenTransactionModal: () => void;
   onOpenCoachModal: () => void;
+  onOpenProfileModal: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
 }
@@ -42,6 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHabitModal,
   onOpenTransactionModal,
   onOpenCoachModal,
+  onOpenProfileModal,
   activeTab,
   setActiveTab,
 }) => {
@@ -174,15 +176,24 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* User Auth Account Badge & Logout */}
-            <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl pl-2.5 pr-1 py-1">
-              <div className="flex items-center gap-1.5 text-xs text-slate-300 mr-1.5">
-                <div className="w-5 h-5 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 flex items-center justify-center font-bold text-[10px]">
-                  {(user.displayName || user.email || 'U')[0].toUpperCase()}
+            <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl pl-2 pr-1 py-1">
+              <button
+                id="header-profile-btn"
+                onClick={onOpenProfileModal}
+                className="flex items-center gap-1.5 text-xs text-slate-300 mr-1.5 hover:text-white transition-colors cursor-pointer group"
+                title="Edit Profile (Name & Picture)"
+              >
+                <div className="w-6 h-6 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 flex items-center justify-center font-bold text-[10px] overflow-hidden group-hover:border-indigo-400 transition-colors">
+                  {user.photoUrl ? (
+                    <img src={user.photoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    (user.displayName || user.email || 'U')[0].toUpperCase()
+                  )}
                 </div>
-                <span className="max-w-[120px] truncate font-medium text-slate-200" title={user.email}>
+                <span className="max-w-[120px] truncate font-medium text-slate-200 group-hover:text-white" title={user.email}>
                   {user.displayName || user.email.split('@')[0]}
                 </span>
-              </div>
+              </button>
               <button
                 id="header-logout-btn"
                 onClick={onLogout}

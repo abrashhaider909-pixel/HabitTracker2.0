@@ -9,6 +9,7 @@ import { HabitModal } from './components/HabitModal';
 import { TransactionModal } from './components/TransactionModal';
 import { AICoachModal } from './components/AICoachModal';
 import { NotificationModal } from './components/NotificationModal';
+import { ProfileModal } from './components/ProfileModal';
 import { 
   Habit, 
   Transaction, 
@@ -36,6 +37,7 @@ import {
 } from './lib/supabase';
 import { 
   getSavedAuthUser, 
+  saveAuthUser,
   initializeAuth, 
   signOut as authSignOut, 
   onAuthStateChange 
@@ -90,6 +92,7 @@ export default function App() {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [isCoachModalOpen, setIsCoachModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [coachInitialPrompt, setCoachInitialPrompt] = useState<string>('');
 
   // Toast Feedback
@@ -101,6 +104,17 @@ export default function App() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  const handleSaveProfile = useCallback((updated: Partial<AuthUser>) => {
+    if (!user) return;
+    const newUser: AuthUser = {
+      ...user,
+      ...updated,
+    };
+    setUser(newUser);
+    saveAuthUser(newUser);
+    showToast('Profile updated successfully!', 'success');
+  }, [user]);
 
   // Initialize Auth & listen to auth state changes across tabs/refreshes
   useEffect(() => {
@@ -129,6 +143,24 @@ export default function App() {
     return () => {
       mounted = false;
       unsubscribe();
+    };
+  }, []);
+
+  // Fetch live Supabase records on mount so transactions & habits load immediately
+  useEffect(() => {
+    let cancelled = false;
+    fetchRemoteUserData().then((remote) => {
+      if (cancelled) return;
+      if (remote.habits && remote.habits.length > 0) {
+        setHabits(remote.habits);
+      }
+      if (remote.transactions && remote.transactions.length > 0) {
+        setTransactions(remote.transactions);
+      }
+    }).catch(console.warn);
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -638,6 +670,7 @@ export default function App() {
         }}
         onOpenTransactionModal={() => setIsTransactionModalOpen(true)}
         onOpenCoachModal={() => handleOpenCoachWithPrompt()}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
       />
@@ -728,6 +761,13 @@ export default function App() {
         onClose={() => setIsNotificationModalOpen(false)}
         settings={notificationSettings}
         onSaveSettings={handleSaveNotificationSettings}
+      />
+
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        user={user}
+        onSaveProfile={handleSaveProfile}
       />
     </div>
   );

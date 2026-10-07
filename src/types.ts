@@ -96,6 +96,7 @@ export interface AuthUser {
   id: string;
   email: string;
   displayName?: string;
+  photoUrl?: string;
   isGuest?: boolean;
   createdAt?: string;
 }

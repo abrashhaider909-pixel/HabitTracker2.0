@@ -250,88 +250,51 @@ export async function fetchRemoteTransactions(userId?: string, userEmail?: strin
   }
 
   try {
-    const isAbrash = userEmail?.toLowerCase() === 'abrashhaider909@gmail.com' || userId === 'f058fc67-b31d-4dfe-8433-660c50b19dcf';
+    const txRes = await client
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: false });
 
-    let rows: any[] | null = null;
-    let queryError: any = null;
-
-    if (isAbrash) {
-      const txRes = await client
-        .from('transactions')
-        .select('*')
-        .or('user_id.eq.f058fc67-b31d-4dfe-8433-660c50b19dcf,user_id.is.null')
-        .order('date', { ascending: false });
-
-      if (!txRes.error && txRes.data) {
-        rows = txRes.data;
-      } else {
-        queryError = txRes.error;
-      }
-    } else {
-      if (userId && isValidUUID(userId)) {
-        const txRes = await client
-          .from('transactions')
-          .select('*')
-          .eq('user_id', userId)
-          .order('date', { ascending: false });
-
-        if (!txRes.error && txRes.data) {
-          rows = txRes.data;
-        } else {
-          queryError = txRes.error;
-        }
-      } else {
-        rows = [];
-      }
-    }
-
-    // Check if table missing
-    if (queryError) {
+    if (txRes.error) {
       const isTableMissing =
-        queryError.code === '42P01' ||
-        queryError.code === 'PGRST205' ||
-        queryError.message?.toLowerCase().includes('not find') ||
-        queryError.message?.toLowerCase().includes('does not exist');
+        txRes.error.code === '42P01' ||
+        txRes.error.code === 'PGRST205' ||
+        txRes.error.message?.toLowerCase().includes('not find') ||
+        txRes.error.message?.toLowerCase().includes('does not exist');
 
       return {
         transactions: [],
         tableExists: !isTableMissing,
-        error: queryError.message,
+        error: txRes.error.message,
       };
     }
 
-    if (rows) {
-      const mapped: Transaction[] = rows.map((t: any, index: number) => {
-        let rawType = String(t.type || '').toLowerCase();
-        let normalizedType: TransactionType = 'expense';
-        if (rawType.includes('inc') || rawType === 'credit') {
-          normalizedType = 'income';
-        } else if (rawType.includes('sav') || rawType.includes('invest')) {
-          normalizedType = 'savings';
-        } else {
-          normalizedType = 'expense';
-        }
-
-        return {
-          id: t.id ? String(t.id) : `tx-sb-${index}-${Date.now()}`,
-          type: normalizedType,
-          amount: Math.abs(Number(t.amount ?? t.value ?? t.total ?? 0)),
-          category: String(t.category || t.category_name || t.categoryName || 'General'),
-          description: String(t.description || t.name || t.title || t.notes || 'Transaction'),
-          date: t.date || (t.created_at ? String(t.created_at).split('T')[0] : new Date().toISOString().split('T')[0]),
-          paymentMethod: String(t.payment_method || t.paymentMethod || t.channel || 'Card'),
-          createdAt: t.created_at || t.createdAt || new Date().toISOString(),
-        };
-      });
+    const rows = txRes.data || [];
+    const mapped: Transaction[] = rows.map((t: any, index: number) => {
+      let rawType = String(t.type || '').toLowerCase();
+      let normalizedType: TransactionType = 'expense';
+      if (rawType.includes('inc') || rawType === 'credit') {
+        normalizedType = 'income';
+      } else if (rawType.includes('sav') || rawType.includes('invest')) {
+        normalizedType = 'savings';
+      } else {
+        normalizedType = 'expense';
+      }
 
       return {
-        transactions: mapped,
-        tableExists: true,
+        id: t.id ? String(t.id) : `tx-sb-${index}-${Date.now()}`,
+        type: normalizedType,
+        amount: Math.abs(Number(t.amount ?? t.value ?? t.total ?? 0)),
+        category: String(t.category || t.category_name || t.categoryName || 'General'),
+        description: String(t.description || t.name || t.title || t.notes || 'Transaction'),
+        date: t.date || (t.created_at ? String(t.created_at).split('T')[0] : new Date().toISOString().split('T')[0]),
+        paymentMethod: String(t.payment_method || t.paymentMethod || t.channel || 'Card'),
+        createdAt: t.created_at || t.createdAt || new Date().toISOString(),
       };
-    }
+    });
 
     return {
-      transactions: [],
+      transactions: mapped,
       tableExists: true,
     };
   } catch (err: any) {
@@ -343,7 +306,7 @@ export async function fetchRemoteTransactions(userId?: string, userEmail?: strin
   }
 }
 
-// Fetch all remote user data (habits and transactions) with strict account privacy
+// Fetch all remote user data (habits and transactions)
 export async function fetchRemoteUserData(userId?: string, userEmail?: string): Promise<{
   habits?: Habit[];
   transactions?: Transaction[];
@@ -354,44 +317,15 @@ export async function fetchRemoteUserData(userId?: string, userEmail?: string): 
   if (!client) return {};
 
   try {
-    const isAbrash = userEmail?.toLowerCase() === 'abrashhaider909@gmail.com' || userId === 'f058fc67-b31d-4dfe-8433-660c50b19dcf';
     const txResult = await fetchRemoteTransactions(userId, userEmail);
 
-    let habitsRows: any[] | null = null;
-    let habitsError: any = null;
+    const hRes = await client
+      .from('habits')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    if (isAbrash) {
-      // Primary account: fetch authentic habits
-      const hRes = await client
-        .from('habits')
-        .select('*')
-        .or('user_id.eq.f058fc67-b31d-4dfe-8433-660c50b19dcf,user_id.is.null')
-        .order('created_at', { ascending: false });
-
-      if (!hRes.error && hRes.data) {
-        habitsRows = hRes.data;
-      } else {
-        habitsError = hRes.error;
-      }
-    } else {
-      // STRICT DATA PRIVACY: Different account only receives records created by its own user ID
-      if (userId && isValidUUID(userId)) {
-        const hRes = await client
-          .from('habits')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false });
-
-        if (!hRes.error && hRes.data) {
-          habitsRows = hRes.data;
-        } else {
-          habitsError = hRes.error;
-        }
-      } else {
-        // Different user starts with completely empty private workspace
-        habitsRows = [];
-      }
-    }
+    let habitsRows: any[] = hRes.data || [];
+    let habitsError = hRes.error;
 
     const result: {
       habits?: Habit[];
