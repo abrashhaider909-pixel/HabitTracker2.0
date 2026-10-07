@@ -73,23 +73,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
   const handleGoogleClick = async () => {
     setErrorMessage(null);
     setSuccessMessage(null);
-
-    const inputEmail = email.trim();
-    if (!inputEmail.includes('@')) {
-      setErrorMessage('Please enter your Google account email in the box below, then click Continue with Google.');
-      const el = document.getElementById('auth-email-input');
-      if (el) {
-        el.focus();
-      }
-      return;
-    }
-
     setIsGoogleLoading(true);
 
     try {
-      const res = await signInWithGoogle(inputEmail);
+      const target = email.trim();
+      const res = await signInWithGoogle(target.includes('@') ? target : undefined);
       if (res.success && res.user) {
-        setSuccessMessage(`Signed in as ${res.user.email}`);
+        setSuccessMessage(`Authenticated with Google! Welcome.`);
         setTimeout(() => {
           onAuthSuccess(res.user!);
         }, 350);

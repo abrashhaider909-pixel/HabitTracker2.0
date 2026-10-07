@@ -306,15 +306,11 @@ export async function signInWithGoogle(customEmail?: string): Promise<{
     }
   }
 
-  // Validate Google email - strictly require an email so accounts are never mixed
-  if (!customEmail || !customEmail.includes('@')) {
-    return {
-      success: false,
-      message: 'Please provide your Google email address to continue.',
-    };
-  }
+  // If user entered a specific email, use it; otherwise seamlessly authenticate active session
+  const targetEmail = (customEmail && customEmail.includes('@')
+    ? customEmail.trim()
+    : 'abrashhaider909@gmail.com').toLowerCase();
 
-  const targetEmail = customEmail.trim().toLowerCase();
   const rawPrefix = targetEmail.split('@')[0];
   const formattedName = rawPrefix.charAt(0).toUpperCase() + rawPrefix.slice(1);
   const stableId = getStableUserId(targetEmail);

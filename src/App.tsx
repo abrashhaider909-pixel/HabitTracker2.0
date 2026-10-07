@@ -196,15 +196,13 @@ export default function App() {
             saveLocalHabits([], currentUserId);
           }
 
-          // Safe transaction merge: prioritize remote records if available; otherwise preserve local records and sync
+          // Safe transaction merge: prioritize remote records if available; otherwise reset to empty so dummy records never persist
           if (remote.transactions && remote.transactions.length > 0) {
             setTransactions(remote.transactions);
             saveLocalTransactions(remote.transactions, currentUserId);
-          } else if (loadedTransactions.length > 0) {
-            setTransactions(loadedTransactions);
-            for (const tx of loadedTransactions) {
-              upsertTransactionToSupabase(tx, currentUserId).catch(() => {});
-            }
+          } else {
+            setTransactions([]);
+            saveLocalTransactions([], currentUserId);
           }
         } catch (error) {
           console.warn('Notice loading Supabase user data:', error);

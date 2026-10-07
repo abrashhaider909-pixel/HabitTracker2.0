@@ -125,21 +125,64 @@ export function saveLocalHabits(habits: Habit[], userId?: string): void {
   }
 }
 
+const DUMMY_TRANSACTION_DESCRIPTIONS = [
+  'monthly senior swe base compensation',
+  'system architecture advisory for startup',
+  'automated dollar cost averaging into vanguard etf',
+  'apartment rent, electric, high-speed fiber internet',
+  'weekly organic groceries and clean meal preps',
+  'cloud server lab credits & leetcode premium subscription',
+  'gym membership and recovery sauna pass',
+  'high yield savings account deposit',
+];
+
+export function isDummyTransaction(t: any): boolean {
+  if (!t || !t.description) return false;
+  const desc = String(t.description).trim().toLowerCase();
+  for (const dummy of DUMMY_TRANSACTION_DESCRIPTIONS) {
+    if (desc.includes(dummy) || dummy.includes(desc)) return true;
+  }
+  return false;
+}
+
 export function getLocalTransactions(fallback: Transaction[] = [], userId?: string): Transaction[] {
   try {
+    // Clean any legacy dummy keys in localStorage across all accounts
+    if (typeof localStorage !== 'undefined') {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(STORAGE_KEY_TRANSACTIONS)) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            try {
+              const list = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                const cleaned = list.filter((item: any) => !isDummyTransaction(item));
+                if (cleaned.length !== list.length) {
+                  localStorage.setItem(k, JSON.stringify(cleaned));
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+    }
+
     if (userId) {
       const key = getScopedKey(STORAGE_KEY_TRANSACTIONS, userId);
       const data = localStorage.getItem(key);
       if (data !== null) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter(t => !isDummyTransaction(t));
+        }
       }
       return [];
     }
   } catch (e) {
     console.error('Failed to read local transactions:', e);
   }
-  return fallback;
+  return fallback.filter(t => !isDummyTransaction(t));
 }
 
 export function saveLocalTransactions(transactions: Transaction[], userId?: string): void {
