@@ -306,11 +306,15 @@ export async function signInWithGoogle(customEmail?: string): Promise<{
     }
   }
 
-  // If user entered an email, use it; otherwise automatically authenticate with active Google session
-  const targetEmail = (customEmail && customEmail.includes('@')
-    ? customEmail.trim()
-    : 'abrashhaider909@gmail.com').toLowerCase();
+  // Validate Google email - strictly require an email so accounts are never mixed
+  if (!customEmail || !customEmail.includes('@')) {
+    return {
+      success: false,
+      message: 'Please provide your Google email address to continue.',
+    };
+  }
 
+  const targetEmail = customEmail.trim().toLowerCase();
   const rawPrefix = targetEmail.split('@')[0];
   const formattedName = rawPrefix.charAt(0).toUpperCase() + rawPrefix.slice(1);
   const stableId = getStableUserId(targetEmail);
@@ -329,7 +333,7 @@ export async function signInWithGoogle(customEmail?: string): Promise<{
   return {
     success: true,
     user: googleUser,
-    message: `Google Account Verified! Welcome, ${formattedName}.`,
+    message: `Signed in as ${targetEmail}`,
   };
 }
 

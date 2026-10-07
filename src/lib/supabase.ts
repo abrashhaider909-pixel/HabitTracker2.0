@@ -250,10 +250,25 @@ export async function fetchRemoteTransactions(userId?: string, userEmail?: strin
   }
 
   try {
-    const txRes = await client
-      .from('transactions')
-      .select('*')
-      .order('date', { ascending: false });
+    const cleanEmail = (userEmail || '').trim().toLowerCase();
+    const isAbrash = cleanEmail === 'abrashhaider909@gmail.com' || userId === 'f058fc67-b31d-4dfe-8433-660c50b19dcf';
+
+    let txRes: any;
+    if (isAbrash) {
+      txRes = await client
+        .from('transactions')
+        .select('*')
+        .or('user_id.eq.f058fc67-b31d-4dfe-8433-660c50b19dcf,user_id.is.null')
+        .order('date', { ascending: false });
+    } else if (userId && isValidUUID(userId)) {
+      txRes = await client
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false });
+    } else {
+      return { transactions: [], tableExists: true };
+    }
 
     if (txRes.error) {
       const isTableMissing =
@@ -319,13 +334,35 @@ export async function fetchRemoteUserData(userId?: string, userEmail?: string): 
   try {
     const txResult = await fetchRemoteTransactions(userId, userEmail);
 
-    const hRes = await client
-      .from('habits')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const cleanEmail = (userEmail || '').trim().toLowerCase();
+    const isAbrash = cleanEmail === 'abrashhaider909@gmail.com' || userId === 'f058fc67-b31d-4dfe-8433-660c50b19dcf';
 
-    let habitsRows: any[] = hRes.data || [];
-    let habitsError = hRes.error;
+    let habitsRows: any[] = [];
+    let habitsError = null;
+
+    if (isAbrash) {
+      // Abrash Haider gets his 13 authentic habits
+      const hRes = await client
+        .from('habits')
+        .select('*')
+        .or('user_id.eq.f058fc67-b31d-4dfe-8433-660c50b19dcf,user_id.is.null')
+        .order('created_at', { ascending: false });
+
+      habitsRows = hRes.data || [];
+      habitsError = hRes.error;
+    } else if (userId && isValidUUID(userId)) {
+      // Other accounts ONLY see habits created by their own user ID
+      const hRes = await client
+        .from('habits')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      habitsRows = hRes.data || [];
+      habitsError = hRes.error;
+    } else {
+      habitsRows = [];
+    }
 
     const result: {
       habits?: Habit[];

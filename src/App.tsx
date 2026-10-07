@@ -146,24 +146,6 @@ export default function App() {
     };
   }, []);
 
-  // Fetch live Supabase records on mount so transactions & habits load immediately
-  useEffect(() => {
-    let cancelled = false;
-    fetchRemoteUserData().then((remote) => {
-      if (cancelled) return;
-      if (remote.habits && remote.habits.length > 0) {
-        setHabits(remote.habits);
-      }
-      if (remote.transactions && remote.transactions.length > 0) {
-        setTransactions(remote.transactions);
-      }
-    }).catch(console.warn);
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // Reload user data when active user account changes or on login
   useEffect(() => {
     let cancelled = false;

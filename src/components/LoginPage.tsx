@@ -69,16 +69,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
     }
   };
 
-  // 1-Click Automatic Google Sign-In (no email prompt required)
+  // Continue with Google Sign-In
   const handleGoogleClick = async () => {
     setErrorMessage(null);
     setSuccessMessage(null);
+
+    const inputEmail = email.trim();
+    if (!inputEmail.includes('@')) {
+      setErrorMessage('Please enter your Google account email in the box below, then click Continue with Google.');
+      const el = document.getElementById('auth-email-input');
+      if (el) {
+        el.focus();
+      }
+      return;
+    }
+
     setIsGoogleLoading(true);
 
     try {
-      const res = await signInWithGoogle(email.trim().includes('@') ? email.trim() : undefined);
+      const res = await signInWithGoogle(inputEmail);
       if (res.success && res.user) {
-        setSuccessMessage(res.message || 'Authenticated with Google! Welcome.');
+        setSuccessMessage(`Signed in as ${res.user.email}`);
         setTimeout(() => {
           onAuthSuccess(res.user!);
         }, 350);
