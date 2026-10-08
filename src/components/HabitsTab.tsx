@@ -37,7 +37,7 @@ interface HabitsTabProps {
   onDeleteHabit: (habitId: string) => void;
   onEditHabit: (habit: Habit) => void;
   onOpenAddModal: () => void;
-  onEvaluateDay: () => void;
+  onOpenEventPlanner?: () => void;
 }
 
 export const HabitsTab: React.FC<HabitsTabProps> = ({
@@ -49,7 +49,7 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
   onDeleteHabit,
   onEditHabit,
   onOpenAddModal,
-  onEvaluateDay,
+  onOpenEventPlanner,
 }) => {
   const [viewMode, setViewMode] = useState<'cards' | 'consistency'>('cards');
   const [selectedCategories, setSelectedCategories] = useState<LifeDimension[]>([]);
@@ -65,6 +65,38 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
     }
     return days;
   }, []);
+
+  // Rolling 7-day strip centered on selectedDate for instant 1-tap mobile & PC day navigation
+  const rolling7Days = useMemo(() => {
+    const list: Array<{
+      dateStr: string;
+      dayOfWeek: string;
+      dayNum: number;
+      isToday: boolean;
+      isSelected: boolean;
+      completedCount: number;
+      totalCount: number;
+    }> = [];
+    const today = getTodayDateStr();
+    for (let i = -3; i <= 3; i++) {
+      const dStr = addDays(selectedDate, i);
+      const parts = dStr.split('-');
+      const dObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      const dayOfWeek = dObj.toLocaleDateString('en-US', { weekday: 'short' });
+      const dayNum = dObj.getDate();
+      const done = habits.filter((h) => isHabitCompleted(h, dStr)).length;
+      list.push({
+        dateStr: dStr,
+        dayOfWeek,
+        dayNum,
+        isToday: dStr === today,
+        isSelected: dStr === selectedDate,
+        completedCount: done,
+        totalCount: habits.length,
+      });
+    }
+    return list;
+  }, [selectedDate, habits]);
 
   // Category styling and metadata
   const categoryConfig: Record<LifeDimension, {
@@ -83,79 +115,75 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
       label: 'Education',
       icon: BookOpen,
       color: 'from-blue-500 to-cyan-400',
-      badgeBg: 'bg-blue-500/10 border-blue-500/30',
-      textCol: 'text-blue-400',
-      activeBg: 'bg-blue-500/15',
-      activeBorder: 'border-blue-500/50',
-      activeText: 'text-blue-300',
-      activeRing: 'ring-blue-500/30',
-      activePill: 'bg-blue-500/20 text-blue-200 border-blue-500/30',
+      badgeBg: 'bg-blue-50 border-blue-200',
+      textCol: 'text-blue-700',
+      activeBg: 'bg-blue-50',
+      activeBorder: 'border-blue-400',
+      activeText: 'text-blue-800',
+      activeRing: 'ring-blue-200',
+      activePill: 'bg-blue-100 text-blue-800 border-blue-300',
     },
     health: {
       label: 'Health',
       icon: Activity,
       color: 'from-emerald-500 to-teal-400',
-      badgeBg: 'bg-emerald-500/10 border-emerald-500/30',
-      textCol: 'text-emerald-400',
-      activeBg: 'bg-emerald-500/15',
-      activeBorder: 'border-emerald-500/50',
-      activeText: 'text-emerald-300',
-      activeRing: 'ring-emerald-500/30',
-      activePill: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/30',
+      badgeBg: 'bg-emerald-50 border-emerald-200',
+      textCol: 'text-emerald-700',
+      activeBg: 'bg-emerald-50',
+      activeBorder: 'border-emerald-400',
+      activeText: 'text-emerald-800',
+      activeRing: 'ring-emerald-200',
+      activePill: 'bg-emerald-100 text-emerald-800 border-emerald-300',
     },
     career: {
       label: 'Career',
       icon: Briefcase,
       color: 'from-violet-500 to-purple-400',
-      badgeBg: 'bg-violet-500/10 border-violet-500/30',
-      textCol: 'text-violet-400',
-      activeBg: 'bg-violet-500/15',
-      activeBorder: 'border-violet-500/50',
-      activeText: 'text-violet-300',
-      activeRing: 'ring-violet-500/30',
-      activePill: 'bg-violet-500/20 text-violet-200 border-violet-500/30',
+      badgeBg: 'bg-purple-50 border-purple-200',
+      textCol: 'text-purple-700',
+      activeBg: 'bg-purple-50',
+      activeBorder: 'border-purple-400',
+      activeText: 'text-purple-800',
+      activeRing: 'ring-purple-200',
+      activePill: 'bg-purple-100 text-purple-800 border-purple-300',
     },
     religion: {
       label: 'Religion',
       icon: SunMedium,
       color: 'from-amber-500 to-yellow-400',
-      badgeBg: 'bg-amber-500/10 border-amber-500/30',
-      textCol: 'text-amber-400',
-      activeBg: 'bg-amber-500/15',
-      activeBorder: 'border-amber-500/50',
-      activeText: 'text-amber-300',
-      activeRing: 'ring-amber-500/30',
-      activePill: 'bg-amber-500/20 text-amber-200 border-amber-500/30',
+      badgeBg: 'bg-amber-50 border-amber-200',
+      textCol: 'text-amber-800',
+      activeBg: 'bg-amber-50',
+      activeBorder: 'border-amber-400',
+      activeText: 'text-amber-900',
+      activeRing: 'ring-amber-200',
+      activePill: 'bg-amber-100 text-amber-900 border-amber-300',
     },
     social: {
       label: 'Social',
       icon: HeartHandshake,
       color: 'from-pink-500 to-rose-400',
-      badgeBg: 'bg-pink-500/10 border-pink-500/30',
-      textCol: 'text-pink-400',
-      activeBg: 'bg-pink-500/15',
-      activeBorder: 'border-pink-500/50',
-      activeText: 'text-pink-300',
-      activeRing: 'ring-pink-500/30',
-      activePill: 'bg-pink-500/20 text-pink-200 border-pink-500/30',
+      badgeBg: 'bg-rose-50 border-rose-200',
+      textCol: 'text-rose-700',
+      activeBg: 'bg-rose-50',
+      activeBorder: 'border-rose-400',
+      activeText: 'text-rose-800',
+      activeRing: 'ring-rose-200',
+      activePill: 'bg-rose-100 text-rose-800 border-rose-300',
     },
   };
 
   // Toggle category visibility
   const handleToggleCategory = (dim: LifeDimension) => {
     setSelectedCategories((prev) => {
-      // If currently all categories are visible, clicking one isolates it
       if (prev.length === 0) {
         return [dim];
       }
-      // If already active, toggle it off
       if (prev.includes(dim)) {
         const next = prev.filter((c) => c !== dim);
         return next;
       }
-      // Otherwise add it
       const next = [...prev, dim];
-      // If all 5 selected, reset to all
       if (next.length === 5) {
         return [];
       }
@@ -217,94 +245,128 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Banner / Hero Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Execution Card */}
-        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-sm relative overflow-hidden">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Today's Execution</span>
-            <CalendarCheck className="w-4 h-4 text-emerald-400" />
+            <span className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">Today's Done</span>
+            <CalendarCheck className="w-4 h-4 text-[#0F766E]" />
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-white tracking-tight">{executionPercentage}%</span>
-            <span className="text-xs text-slate-400 font-medium">({completedCount} of {totalCount} done)</span>
+          <div className="mt-2 flex items-baseline gap-1.5 sm:gap-2">
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">{executionPercentage}%</span>
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium">({completedCount}/{totalCount})</span>
           </div>
-          <div className="mt-3 w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+          <div className="mt-2.5 w-full bg-slate-100 rounded-full h-1.5 sm:h-2 overflow-hidden border border-slate-200">
             <div 
-              className="bg-gradient-to-r from-indigo-500 via-indigo-400 to-emerald-400 h-2 rounded-full transition-all duration-500"
+              className="bg-[#0F766E] h-full rounded-full transition-all duration-500"
               style={{ width: `${executionPercentage}%` }}
             />
           </div>
         </div>
 
         {/* Daily Habits Active */}
-        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-sm">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Daily Recurring</span>
-            <Layers className="w-4 h-4 text-indigo-400" />
+            <span className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">Daily Routines</span>
+            <Layers className="w-4 h-4 text-slate-600" />
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-white tracking-tight">
+          <div className="mt-2 flex items-baseline gap-1.5 sm:gap-2">
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               {habits.filter(h => h.isDaily).length}
             </span>
-            <span className="text-xs text-slate-400 font-medium">auto-resets at midnight</span>
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium">active targets</span>
           </div>
-          <p className="mt-2 text-xs text-indigo-300/80 font-medium">
-            Non-negotiable foundational routine
+          <p className="mt-1.5 text-[11px] text-slate-500 font-medium truncate">
+            Foundational routines
           </p>
         </div>
 
         {/* Longest Active Streak */}
-        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-sm">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Current Top Streak</span>
-            <Flame className="w-4 h-4 text-amber-400" />
+            <span className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">Top Streak</span>
+            <Flame className="w-4 h-4 text-amber-500" />
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-amber-300 tracking-tight">
+          <div className="mt-2 flex items-baseline gap-1.5 sm:gap-2">
+            <span className="text-2xl sm:text-3xl font-extrabold text-amber-900 tracking-tight">
               {habits.reduce((max, h) => Math.max(max, h.streak), 0)}
             </span>
-            <span className="text-xs text-slate-400 font-medium">days in a row</span>
+            <span className="text-[11px] sm:text-xs text-slate-500 font-medium">days in a row</span>
           </div>
-          <p className="mt-2 text-xs text-amber-400/80 font-medium">
-            Compound consistency unlocks mastery
+          <p className="mt-1.5 text-[11px] text-amber-700/80 font-medium truncate">
+            Consistent momentum
           </p>
         </div>
 
-        {/* AI Action Trigger */}
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-950/80 via-slate-900 to-slate-900 border border-indigo-500/30 shadow-sm flex flex-col justify-between">
+        {/* Event Planner Quick Trigger */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-teal-50/70 border border-teal-200/80 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-indigo-300 uppercase tracking-wider">5D AI Judgement</span>
-            <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
+            <span className="text-[11px] sm:text-xs font-semibold text-[#0F766E] uppercase tracking-wider">Event &amp; Reminders</span>
+            <CalendarDays className="w-4 h-4 text-[#0F766E]" />
           </div>
-          <div className="mt-1">
-            <p className="text-xs text-slate-300">Evaluate today's routine against your 5 core life pillars.</p>
-          </div>
+          <p className="mt-1 text-[11px] text-slate-600 line-clamp-1 sm:line-clamp-2">Plan dates, milestones &amp; get alerts.</p>
           <button
-            id="habits-evaluate-btn"
-            onClick={onEvaluateDay}
-            className="mt-2 w-full py-1.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-sm shadow-indigo-600/30"
+            id="habits-event-planner-btn"
+            onClick={onOpenEventPlanner}
+            className="mt-2 w-full py-1.5 px-2.5 rounded-xl bg-[#0F766E] hover:bg-[#0D655E] text-white text-[11px] sm:text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-98"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Judge Today's Routine</span>
+            <CalendarDays className="w-3.5 h-3.5" />
+            <span>Plan Events</span>
           </button>
         </div>
       </div>
 
+      {/* 7-Day Rolling Interactive Date Navigation Strip */}
+      <div className="p-2 sm:p-2.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center justify-between gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar">
+        {rolling7Days.map((day) => (
+          <button
+            key={day.dateStr}
+            onClick={() => onSelectDate(day.dateStr)}
+            className={`flex-1 min-w-[48px] sm:min-w-[65px] py-2 px-1 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer ${
+              day.isSelected
+                ? 'bg-[#0F766E] text-white shadow-xs scale-[1.02]'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+            }`}
+          >
+            <span className={`text-[10px] uppercase font-bold tracking-wider ${day.isSelected ? 'text-teal-100' : 'text-slate-400'}`}>
+              {day.dayOfWeek}
+            </span>
+            <span className={`text-sm sm:text-base font-black my-0.5 ${day.isSelected ? 'text-white' : 'text-slate-900'}`}>
+              {day.dayNum}
+            </span>
+            {day.isToday ? (
+              <span className={`text-[8px] font-extrabold uppercase px-1 rounded-sm ${day.isSelected ? 'bg-white/20 text-white' : 'bg-teal-50 text-[#0F766E]'}`}>
+                Today
+              </span>
+            ) : (
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  day.completedCount > 0 
+                    ? day.completedCount === day.totalCount ? 'bg-emerald-400' : 'bg-teal-400' 
+                    : 'bg-slate-300'
+                }`} />
+                <span className="text-[9px] font-mono text-slate-400">{day.completedCount}</span>
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* View Switcher: Daily Execution Cards vs 30-Day Consistency View */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1.5 bg-slate-900/90 border border-slate-800 rounded-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1.5 bg-slate-100 border border-slate-200 rounded-2xl">
         <div className="flex items-center gap-1.5">
           <button
             id="habits-view-cards-btn"
             onClick={() => setViewMode('cards')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
               viewMode === 'cards'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <LayoutGrid className="w-4 h-4" />
-            <span>Daily Habits & Routines</span>
-            <span className="text-[11px] px-2 py-0.2 rounded-full bg-black/20 text-white/90">
+            <span>Daily Habits &amp; Routines</span>
+            <span className="text-[11px] px-2 py-0.2 rounded-full bg-slate-100 text-slate-600">
               {habits.length}
             </span>
           </button>
@@ -312,23 +374,23 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
           <button
             id="habits-view-consistency-btn"
             onClick={() => setViewMode('consistency')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
               viewMode === 'consistency'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
-            <span>30-Day Consistency & Progress</span>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              Month Matrix & Graph
+            <TrendingUp className="w-4 h-4 text-[#0F766E]" />
+            <span>30-Day Consistency &amp; Progress</span>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-50 text-[#0F766E] border border-teal-200">
+              Month Matrix &amp; Graph
             </span>
           </button>
         </div>
 
-        <div className="hidden md:flex items-center gap-2 px-3 text-xs text-slate-400">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Track consistency to trigger 5D score improvements</span>
+        <div className="hidden md:flex items-center gap-2 px-3 text-xs text-slate-500">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Track consistency and maintain streaks across all categories</span>
         </div>
       </div>
 
@@ -342,14 +404,14 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
       ) : (
         <>
           {/* Category Filter Chips */}
-          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/90 shadow-sm flex flex-col gap-2.5">
+          <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col gap-2.5">
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Filter className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-[#0F766E]" />
                   Category Filters:
                 </span>
-                <span className="text-slate-500 hidden sm:inline">
+                <span className="text-slate-400 hidden sm:inline">
                   {selectedCategories.length === 0
                     ? 'Showing all categories'
                     : `Filtered to ${selectedCategories.length} categor${selectedCategories.length === 1 ? 'y' : 'ies'}`}
@@ -359,7 +421,7 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                 <button
                   id="filter-chip-clear"
                   onClick={handleSelectAllCategories}
-                  className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium cursor-pointer"
+                  className="flex items-center gap-1 text-xs text-[#0F766E] hover:underline transition-colors font-medium cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                   <span>Show All Categories</span>
@@ -375,16 +437,16 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                 onClick={handleSelectAllCategories}
                 className={`group flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
                   selectedCategories.length === 0
-                    ? 'bg-indigo-600/20 border-indigo-500/60 text-indigo-200 ring-1 ring-indigo-500/40 shadow-sm shadow-indigo-500/10'
-                    : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700 hover:bg-slate-900'
+                    ? 'bg-teal-50 border-[#0F766E] text-[#0F766E] shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
-                <Layers className={`w-3.5 h-3.5 ${selectedCategories.length === 0 ? 'text-indigo-400' : 'text-slate-500'}`} />
+                <Layers className={`w-3.5 h-3.5 ${selectedCategories.length === 0 ? 'text-[#0F766E]' : 'text-slate-400'}`} />
                 <span>All Categories</span>
                 <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-bold transition-colors ${
                   selectedCategories.length === 0
-                    ? 'bg-indigo-500/30 text-indigo-200'
-                    : 'bg-slate-800/80 text-slate-400'
+                    ? 'bg-[#0F766E] text-white'
+                    : 'bg-slate-200 text-slate-600'
                 }`}>
                   {habits.length}
                 </span>
@@ -405,8 +467,8 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                     title={isSelected ? `Click to hide ${cfg.label}` : `Click to toggle ${cfg.label} visibility`}
                     className={`group flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap ${
                       isSelected
-                        ? `${cfg.activeBg} ${cfg.activeBorder} ${cfg.activeText} ring-1 ${cfg.activeRing} shadow-sm`
-                        : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700 hover:bg-slate-900'
+                        ? `${cfg.activeBg} ${cfg.activeBorder} ${cfg.activeText} shadow-xs`
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
                     <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-current' : cfg.textCol}`} />
@@ -417,7 +479,7 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                     <span className={`text-[11px] px-1.5 py-0.5 rounded-md font-bold transition-colors ${
                       isSelected
                         ? cfg.activePill
-                        : 'bg-slate-800/80 text-slate-400 group-hover:text-slate-300'
+                        : 'bg-slate-200 text-slate-600 group-hover:text-slate-900'
                     }`}>
                       {stat.completed}/{stat.total}
                     </span>
@@ -436,33 +498,33 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                 placeholder="Search habits or tasks..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0F766E] shadow-xs transition-all"
               />
             </div>
 
             <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
               {/* Daily vs One-time filter */}
-              <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5 text-xs">
+              <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-0.5 text-xs">
                 <button
                   onClick={() => setFilterType('all')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                    filterType === 'all' ? 'bg-slate-800 text-white font-semibold' : 'text-slate-400 hover:text-white'
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                    filterType === 'all' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   All ({habits.length})
                 </button>
                 <button
                   onClick={() => setFilterType('daily')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                    filterType === 'daily' ? 'bg-slate-800 text-white font-semibold' : 'text-slate-400 hover:text-white'
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                    filterType === 'daily' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Daily ({habits.filter(h => h.isDaily).length})
                 </button>
                 <button
                   onClick={() => setFilterType('task')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                    filterType === 'task' ? 'bg-slate-800 text-white font-semibold' : 'text-slate-400 hover:text-white'
+                  className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                    filterType === 'task' ? 'bg-white text-slate-900 font-semibold shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   One-Time ({habits.filter(h => !h.isDaily).length})
@@ -472,9 +534,9 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
               <button
                 id="habits-add-new-btn"
                 onClick={onOpenAddModal}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-sm shadow-indigo-600/20"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0F766E] hover:bg-[#0D655E] text-white transition-all shadow-xs cursor-pointer active:scale-98"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Add Routine Target</span>
               </button>
             </div>
@@ -482,12 +544,12 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
 
           {/* Habit Cards Grid */}
           {filteredHabits.length === 0 ? (
-            <div className="py-12 px-4 text-center rounded-2xl bg-slate-900/40 border border-slate-800/80">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-800/60 flex items-center justify-center text-slate-400 mb-3">
+            <div className="py-12 px-4 text-center rounded-2xl bg-white border border-slate-200/90 shadow-xs">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
-              <h4 className="text-base font-semibold text-white">No habits match your filters</h4>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              <h4 className="text-base font-semibold text-slate-900">No habits match your filters</h4>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
                 Try adjusting your search or category filter, or add a new high-leverage habit to build momentum.
               </p>
               <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
@@ -499,7 +561,7 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                       setFilterType('all');
                       setSearchQuery('');
                     }}
-                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-400 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors border border-slate-700"
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                     <span>Reset All Filters</span>
@@ -508,7 +570,7 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                 <button
                   id="habits-empty-create-btn"
                   onClick={onOpenAddModal}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                  className="px-4 py-2 rounded-xl bg-[#0F766E] hover:bg-[#0D655E] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer active:scale-98"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Create New Habit</span>
@@ -528,8 +590,8 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                     id={`habit-card-${habit.id}`}
                     className={`group relative p-4 rounded-2xl border transition-all duration-200 ${
                       isCompleted
-                        ? 'bg-slate-900/50 border-emerald-500/30 shadow-sm shadow-emerald-500/5'
-                        : 'bg-slate-900/90 border-slate-800/80 hover:border-slate-700 hover:shadow-md'
+                        ? 'bg-teal-50/40 border-teal-200/80 shadow-xs'
+                        : 'bg-white border-slate-200/90 hover:border-slate-300 shadow-xs'
                     }`}
                   >
                     <div className="flex items-start gap-3.5">
@@ -537,16 +599,16 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                       <button
                         id={`habit-toggle-${habit.id}`}
                         onClick={() => onToggleHabit(habit.id)}
-                        className="mt-0.5 flex-shrink-0 transition-transform active:scale-95 focus:outline-none"
+                        className="mt-0.5 flex-shrink-0 transition-transform active:scale-95 focus:outline-none cursor-pointer"
                         title={isCompleted ? 'Mark as Incomplete' : 'Mark as Completed'}
                       >
                         {isCompleted ? (
-                          <div className="w-6 h-6 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center shadow-md shadow-emerald-500/20 ring-2 ring-emerald-400/30">
+                          <div className="w-6 h-6 rounded-lg bg-[#0F766E] text-white flex items-center justify-center shadow-xs ring-2 ring-teal-200">
                             <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
                           </div>
                         ) : (
-                          <div className="w-6 h-6 rounded-lg border-2 border-slate-600 hover:border-indigo-400 flex items-center justify-center bg-slate-950/40 transition-colors">
-                            <Circle className="w-3.5 h-3.5 text-transparent hover:text-indigo-400/30" />
+                          <div className="w-6 h-6 rounded-lg border-2 border-slate-300 hover:border-[#0F766E] flex items-center justify-center bg-white transition-colors">
+                            <Circle className="w-3.5 h-3.5 text-transparent hover:text-teal-400" />
                           </div>
                         )}
                       </button>
@@ -561,42 +623,42 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
 
                           <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md ${
                             habit.isDaily
-                              ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20'
-                              : 'bg-slate-800 text-slate-300 border border-slate-700'
+                              ? 'bg-slate-100 text-slate-700 border border-slate-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}>
                             {habit.isDaily ? 'Daily Habit' : 'One-Time Task'}
                           </span>
 
                           {habit.priority === 'high' && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
                               P1 High
                             </span>
                           )}
 
                           {habit.isDaily && (
-                            <div className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 font-mono text-xs font-bold">
-                              <Flame className="w-3.5 h-3.5 fill-amber-400/30 animate-pulse" />
+                            <div className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 font-mono text-xs font-bold">
+                              <Flame className="w-3.5 h-3.5 fill-amber-500/20 text-amber-600" />
                               <span>{habit.streak}d streak</span>
                             </div>
                           )}
                         </div>
 
                         <h3 className={`mt-1.5 text-sm font-semibold tracking-tight transition-all ${
-                          isCompleted ? 'text-slate-400 line-through decoration-slate-600' : 'text-white'
+                          isCompleted ? 'text-slate-400 line-through decoration-slate-400' : 'text-slate-900'
                         }`}>
                           {habit.title}
                         </h3>
 
                         {habit.description && (
-                          <p className={`mt-1 text-xs line-clamp-2 ${isCompleted ? 'text-slate-500' : 'text-slate-400'}`}>
+                          <p className={`mt-1 text-xs line-clamp-2 ${isCompleted ? 'text-slate-400' : 'text-slate-600'}`}>
                             {habit.description}
                           </p>
                         )}
 
                         {/* 14-Day Mini Activity Sparkline Dots */}
                         {habit.isDaily && (
-                          <div className="mt-3 pt-2.5 border-t border-slate-800/70 flex items-center justify-between">
-                            <span className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider">
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                            <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
                               14d History:
                             </span>
                             <div className="flex items-center gap-1">
@@ -612,14 +674,14 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                                       e.stopPropagation();
                                       onToggleHabitDate(habit.id, dateStr);
                                     }}
-                                    className={`w-3.5 h-3.5 rounded-sm transition-transform active:scale-75 ${
+                                    className={`w-3.5 h-3.5 rounded-sm transition-transform active:scale-75 cursor-pointer ${
                                       isDone
-                                        ? 'bg-emerald-400 hover:bg-emerald-300'
-                                        : 'bg-slate-800 hover:bg-slate-700'
+                                        ? 'bg-[#0F766E] hover:bg-[#0D655E]'
+                                        : 'bg-slate-200 hover:bg-slate-300'
                                     } ${
-                                      isCurSelected ? 'ring-1 ring-white' : ''
+                                      isCurSelected ? 'ring-1 ring-slate-800' : ''
                                     } ${
-                                      isToday ? 'border border-indigo-400' : ''
+                                      isToday ? 'border border-[#0F766E]' : ''
                                     }`}
                                     title={`${dateStr}: ${isDone ? 'Completed' : 'Missed'} (Click to toggle)`}
                                   />
@@ -630,16 +692,16 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                         )}
 
                         {/* Metadata Footer: Duration, timeOfDay, best streak */}
-                        <div className="mt-2.5 flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+                        <div className="mt-2.5 flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
                           {habit.bestStreak > 0 && (
-                            <span className="text-slate-400">
-                              Best Record: <strong className="text-amber-400">{habit.bestStreak} days</strong>
+                            <span className="text-slate-500">
+                              Best Record: <strong className="text-amber-800 font-semibold">{habit.bestStreak} days</strong>
                             </span>
                           )}
 
                           {habit.targetDurationMinutes && (
                             <div className="flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-slate-500" />
+                              <Clock className="w-3 h-3 text-slate-400" />
                               <span>{habit.targetDurationMinutes} mins</span>
                             </div>
                           )}
@@ -657,7 +719,7 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                         <button
                           id={`habit-edit-${habit.id}`}
                           onClick={() => onEditHabit(habit)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                           title="Edit Habit"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -665,7 +727,7 @@ export const HabitsTab: React.FC<HabitsTabProps> = ({
                         <button
                           id={`habit-delete-${habit.id}`}
                           onClick={() => onDeleteHabit(habit.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                           title="Delete Habit"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

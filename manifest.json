@@ -1,0 +1,56 @@
+{
+  "id": "/",
+  "name": "HabitPulse Planner & Habit Tracker",
+  "short_name": "HabitPulse",
+  "description": "Smart Habit Tracker, Checklist Manager & Event Planner with push reminders.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0F766E",
+  "background_color": "#F8FAFC",
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["productivity", "lifestyle", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Daily Routines",
+      "short_name": "Routines",
+      "description": "Check off your daily habits",
+      "url": "/#habits",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Event Planner",
+      "short_name": "Events",
+      "description": "Plan events and set reminders",
+      "url": "/#events",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Checklists",
+      "short_name": "Lists",
+      "description": "Manage tasks and action items",
+      "url": "/#list",
+      "icons": [{ "src": "/icon-192.svg", "sizes": "192x192" }]
+    }
+  ]
+}

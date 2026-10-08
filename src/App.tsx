@@ -2,32 +2,36 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from './components/Header';
 import { HabitsTab } from './components/HabitsTab';
 import { MoneyTab } from './components/MoneyTab';
-import { AIEvalTab } from './components/AIEvalTab';
-import { CareerTab } from './components/CareerTab';
+import { ListTab } from './components/ListTab';
+import { EventPlannerTab } from './components/EventPlannerTab';
 import { LoginPage } from './components/LoginPage';
 import { HabitModal } from './components/HabitModal';
 import { TransactionModal } from './components/TransactionModal';
 import { AICoachModal } from './components/AICoachModal';
 import { NotificationModal } from './components/NotificationModal';
 import { ProfileModal } from './components/ProfileModal';
+import { MobileNav } from './components/MobileNav';
+import { QuickActionModal } from './components/QuickActionModal';
+import { SideDrawer } from './components/SideDrawer';
 import { 
   Habit, 
   Transaction, 
   CareerMilestone, 
-  AIEvaluationResult, 
-  LifeDimension,
   AuthUser,
-  NotificationSettings
+  NotificationSettings,
+  ListItem,
+  PlannedEvent
 } from './types';
 import { 
   getLocalHabits, 
   saveLocalHabits, 
   getLocalTransactions, 
   saveLocalTransactions, 
-  getLocalEvaluations, 
-  saveLocalEvaluations, 
-  getLocalCareerMilestones, 
-  saveLocalCareerMilestones, 
+  getLocalListItems,
+  saveLocalListItems,
+  getLocalPlannedEvents,
+  saveLocalPlannedEvents,
+  getLocalCareerMilestones,
   isSupabaseConfigured,
   fetchRemoteUserData,
   upsertHabitToSupabase,
@@ -54,8 +58,6 @@ import { getTodayDateStr } from './lib/dateUtils';
 import { CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function App() {
-  const getTodayISO = () => getTodayDateStr();
-
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateStr());
   const [activeTab, setActiveTab] = useState<string>('habits');
 
@@ -69,7 +71,7 @@ export default function App() {
   const lastTriggeredMinuteRef = useRef<string>('');
   const lastLoadedUserIdRef = useRef<string | null>(null);
 
-  // Core Data States (Scoped to active user for data privacy & persistence)
+  // Core Data States (Scoped to active user)
   const [habits, setHabits] = useState<Habit[]>(() => {
     const initialUser = getSavedAuthUser();
     return getLocalHabits([], initialUser?.id);
@@ -78,11 +80,15 @@ export default function App() {
     const initialUser = getSavedAuthUser();
     return getLocalTransactions([], initialUser?.id);
   });
-  const [evaluations, setEvaluations] = useState<Record<string, AIEvaluationResult>>(() => {
+  const [listItems, setListItems] = useState<ListItem[]>(() => {
     const initialUser = getSavedAuthUser();
-    return getLocalEvaluations({}, initialUser?.id);
+    return getLocalListItems([], initialUser?.id);
   });
-  const [careerMilestones, setCareerMilestones] = useState<CareerMilestone[]>(() => {
+  const [plannedEvents, setPlannedEvents] = useState<PlannedEvent[]>(() => {
+    const initialUser = getSavedAuthUser();
+    return getLocalPlannedEvents([], initialUser?.id);
+  });
+  const [careerMilestones] = useState<CareerMilestone[]>(() => {
     const initialUser = getSavedAuthUser();
     return getLocalCareerMilestones([], initialUser?.id);
   });
@@ -93,11 +99,12 @@ export default function App() {
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [isCoachModalOpen, setIsCoachModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
+  const [isSideDrawerOpen, setIsSideDrawerOpen] = useState(false);
   const [coachInitialPrompt, setCoachInitialPrompt] = useState<string>('');
 
   // Toast Feedback
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
-  const [isEvaluating, setIsEvaluating] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
@@ -164,16 +171,15 @@ export default function App() {
       // 1. Load local cached data for this user
       const loadedHabits = getLocalHabits([], currentUserId);
       const loadedTransactions = getLocalTransactions([], currentUserId);
-
-      const loadedEvals = getLocalEvaluations({}, currentUserId);
-      const loadedMilestones = getLocalCareerMilestones([], currentUserId);
+      const loadedList = getLocalListItems([], currentUserId);
+      const loadedEvents = getLocalPlannedEvents([], currentUserId);
 
       if (cancelled) return;
 
       setHabits(loadedHabits);
       setTransactions(loadedTransactions);
-      setEvaluations(loadedEvals);
-      setCareerMilestones(loadedMilestones);
+      setListItems(loadedList);
+      setPlannedEvents(loadedEvents);
 
       // 2. Fetch live cloud data from Supabase scoped to this user
       if (isSupabaseConfigured()) {
@@ -181,7 +187,6 @@ export default function App() {
           const remote = await fetchRemoteUserData(currentUserId, user.email);
           if (cancelled) return;
 
-          // Safe habit merge: prioritize remote records if available; otherwise preserve local records and sync
           if (remote.habits && remote.habits.length > 0) {
             setHabits(remote.habits);
             saveLocalHabits(remote.habits, currentUserId);
@@ -191,12 +196,10 @@ export default function App() {
               upsertHabitToSupabase(h, currentUserId).catch(() => {});
             }
           } else {
-            // New account: clean empty private workspace
             setHabits([]);
             saveLocalHabits([], currentUserId);
           }
 
-          // Safe transaction merge: prioritize remote records if available; otherwise reset to empty so dummy records never persist
           if (remote.transactions && remote.transactions.length > 0) {
             setTransactions(remote.transactions);
             saveLocalTransactions(remote.transactions, currentUserId);
@@ -217,7 +220,7 @@ export default function App() {
     };
   }, [user]);
 
-  // Sync to local storage scoped to user
+  // Sync state changes to local storage scoped to user
   useEffect(() => {
     if (user?.id) {
       saveLocalHabits(habits, user.id);
@@ -232,55 +235,82 @@ export default function App() {
 
   useEffect(() => {
     if (user?.id) {
-      saveLocalEvaluations(evaluations, user.id);
+      saveLocalListItems(listItems, user.id);
     }
-  }, [evaluations, user?.id]);
+  }, [listItems, user?.id]);
 
   useEffect(() => {
     if (user?.id) {
-      saveLocalCareerMilestones(careerMilestones, user.id);
+      saveLocalPlannedEvents(plannedEvents, user.id);
     }
-  }, [careerMilestones, user?.id]);
+  }, [plannedEvents, user?.id]);
 
-  // Push Notification Background Scheduler (checks every 20 seconds)
+  // Push Notification & Scheduled Event Reminders Background Scheduler (every 15s)
   useEffect(() => {
-    if (!notificationSettings.enabled || !user) return;
+    if (!user) return;
 
     const checkSchedules = () => {
       const now = new Date();
       const hours = String(now.getHours()).padStart(2, '0');
       const minutes = String(now.getMinutes()).padStart(2, '0');
       const currentHHMM = `${hours}:${minutes}`;
+      const todayISO = getTodayDateStr();
       const currentDayOfWeek = getTodayDayOfWeek();
 
-      if (lastTriggeredMinuteRef.current === currentHHMM) {
-        return;
-      }
+      // Check general habit reminder schedules
+      if (notificationSettings.enabled && lastTriggeredMinuteRef.current !== currentHHMM) {
+        const activeMatch = notificationSettings.schedules.find(
+          (s) => s.enabled && s.time === currentHHMM && s.days.includes(currentDayOfWeek)
+        );
 
-      const activeMatch = notificationSettings.schedules.find(
-        (s) => s.enabled && s.time === currentHHMM && s.days.includes(currentDayOfWeek)
-      );
+        if (activeMatch) {
+          lastTriggeredMinuteRef.current = currentHHMM;
 
-      if (activeMatch) {
-        lastTriggeredMinuteRef.current = currentHHMM;
+          sendPushNotification(activeMatch.label, {
+            body: activeMatch.message,
+            icon: '/favicon.ico',
+          });
 
-        sendPushNotification(activeMatch.label, {
-          body: activeMatch.message,
-          icon: '/favicon.ico',
-        });
+          if (notificationSettings.soundEnabled) {
+            playNotificationChime();
+          }
 
-        if (notificationSettings.soundEnabled) {
-          playNotificationChime();
+          showToast(`🔔 ${activeMatch.label}: ${activeMatch.message}`, 'info');
         }
-
-        showToast(`🔔 ${activeMatch.label}: ${activeMatch.message}`, 'info');
       }
+
+      // Check event planner reminders for today
+      plannedEvents.forEach((ev) => {
+        if (!ev.enableNotification || ev.status === 'completed' || ev.date !== todayISO) return;
+        if (!ev.time) return;
+
+        // Calculate time in minutes from midnight
+        const [evH, evM] = ev.time.split(':').map(Number);
+        const eventTotalMins = evH * 60 + evM;
+        const currentTotalMins = now.getHours() * 60 + now.getMinutes();
+
+        ev.reminders.forEach((reminder) => {
+          if (reminder.sent) return;
+          const targetTriggerMins = eventTotalMins - reminder.minutesBefore;
+
+          // If current time reaches target minute
+          if (currentTotalMins >= targetTriggerMins && currentTotalMins <= targetTriggerMins + 2) {
+            reminder.sent = true;
+            sendPushNotification(`Event Reminder: ${ev.title} 🔔`, {
+              body: `Starting at ${ev.time} (${reminder.label})! ${ev.description || ''}`,
+            });
+            playNotificationChime();
+            showToast(`📅 Event: ${ev.title} at ${ev.time}`, 'info');
+            saveLocalPlannedEvents(plannedEvents, user.id);
+          }
+        });
+      });
     };
 
     checkSchedules();
-    const interval = setInterval(checkSchedules, 20000);
+    const interval = setInterval(checkSchedules, 15000);
     return () => clearInterval(interval);
-  }, [notificationSettings, user]);
+  }, [notificationSettings, plannedEvents, user]);
 
   const handleSaveNotificationSettings = (newSettings: NotificationSettings) => {
     setNotificationSettings(newSettings);
@@ -322,59 +352,53 @@ export default function App() {
       const toggled = updated.find((h) => h.id === habitId);
       if (toggled && isSupabaseConfigured()) {
         upsertHabitToSupabase(toggled, user.id).catch((err) => {
-          console.warn('Background Supabase habit update notice:', err);
+          console.warn('Background Supabase habit date update notice:', err);
         });
       }
       return updated;
     });
-
-    showToast(`Logged status for ${date}`);
   }, [user]);
 
-  const handleDeleteHabit = useCallback(async (habitId: string) => {
+  const handleSaveHabit = useCallback((habitData: Omit<Habit, 'id' | 'streak' | 'bestStreak' | 'createdAt' | 'completedDates'> & { id?: string }) => {
     if (!user) return;
-    const target = habits.find((h) => h.id === habitId);
-    setHabits((prev) => {
-      const updated = prev.filter((h) => h.id !== habitId);
-      saveLocalHabits(updated, user.id);
-      return updated;
-    });
-
-    if (isSupabaseConfigured()) {
-      await deleteHabitFromSupabase(habitId, target?.title);
-    }
-
-    showToast('Habit deleted', 'info');
-  }, [user, habits]);
-
-  const handleSaveHabit = useCallback((habitData: Partial<Habit>) => {
-    if (!user) return;
-    if (editingHabit) {
+    if (habitData.id) {
       setHabits((prev) => {
-        const updated = prev.map((h) => (h.id === editingHabit.id ? { ...h, ...habitData } as Habit : h));
+        const updated = prev.map((h) => {
+          if (h.id !== habitData.id) return h;
+          const merged: Habit = {
+            ...h,
+            ...habitData,
+            category: habitData.category,
+            priority: habitData.priority,
+            isDaily: habitData.isDaily,
+            timeOfDay: habitData.timeOfDay,
+            targetDurationMinutes: habitData.targetDurationMinutes,
+          };
+          if (isSupabaseConfigured()) {
+            upsertHabitToSupabase(merged, user.id).catch(() => {});
+          }
+          return merged;
+        });
         saveLocalHabits(updated, user.id);
-        const saved = updated.find(h => h.id === editingHabit.id);
-        if (saved && isSupabaseConfigured()) {
-          upsertHabitToSupabase(saved, user.id).catch(() => {});
-        }
         return updated;
       });
-      showToast('Habit updated');
+      showToast('Habit updated successfully');
     } else {
       const newHabit: Habit = {
-        id: `h-${Date.now()}`,
-        title: habitData.title || 'Untitled Habit',
+        id: `habit-${Date.now()}`,
+        title: habitData.title,
         description: habitData.description,
-        category: habitData.category || 'education',
-        isDaily: habitData.isDaily ?? true,
+        category: habitData.category,
+        isDaily: habitData.isDaily,
         completedDates: [],
-        targetDurationMinutes: habitData.targetDurationMinutes || 30,
-        timeOfDay: habitData.timeOfDay || 'morning',
-        priority: habitData.priority || 'medium',
+        targetDurationMinutes: habitData.targetDurationMinutes,
+        timeOfDay: habitData.timeOfDay,
+        priority: habitData.priority,
         streak: 0,
         bestStreak: 0,
         createdAt: new Date().toISOString(),
       };
+
       setHabits((prev) => {
         const updated = [newHabit, ...prev];
         saveLocalHabits(updated, user.id);
@@ -383,197 +407,165 @@ export default function App() {
         }
         return updated;
       });
-      showToast('New habit target created');
+      showToast('New habit created!');
     }
+    setIsHabitModalOpen(false);
     setEditingHabit(null);
-  }, [editingHabit, user]);
+  }, [user]);
+
+  const handleDeleteHabit = useCallback((habitId: string) => {
+    if (!user) return;
+    setHabits((prev) => {
+      const updated = prev.filter((h) => h.id !== habitId);
+      saveLocalHabits(updated, user.id);
+      if (isSupabaseConfigured()) {
+        deleteHabitFromSupabase(habitId, user.id).catch(() => {});
+      }
+      return updated;
+    });
+    showToast('Habit removed', 'info');
+  }, [user]);
 
   // Transaction Handlers
-  const handleAddTransaction = useCallback(async (txData: Omit<Transaction, 'id' | 'createdAt'>) => {
+  const handleAddTransaction = useCallback((txData: Omit<Transaction, 'id' | 'createdAt'>) => {
     if (!user) return;
-    const tempId = `tx-${Date.now()}`;
     const newTx: Transaction = {
       ...txData,
-      id: tempId,
+      id: `tx-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
 
-    // Immediate state update
     setTransactions((prev) => {
       const updated = [newTx, ...prev];
       saveLocalTransactions(updated, user.id);
+      if (isSupabaseConfigured()) {
+        upsertTransactionToSupabase(newTx, user.id).catch(() => {});
+      }
       return updated;
     });
-    showToast(`Logged $${newTx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ${newTx.type}`);
 
-    // Persist to Supabase
-    if (isSupabaseConfigured()) {
-      try {
-        const res = await upsertTransactionToSupabase(newTx, user.id);
-        if (res.success && res.insertedId && res.insertedId !== tempId) {
-          setTransactions((prev) => {
-            const updated = prev.map((t) => (t.id === tempId ? { ...t, id: String(res.insertedId) } : t));
-            saveLocalTransactions(updated, user.id);
-            return updated;
-          });
-        }
-      } catch (err) {
-        console.warn('Supabase transaction save notice:', err);
-      }
-    }
+    setIsTransactionModalOpen(false);
+    showToast('Transaction logged successfully');
   }, [user]);
 
-  const handleDeleteTransaction = useCallback(async (id: string) => {
+  const handleDeleteTransaction = useCallback((txId: string) => {
     if (!user) return;
-    const target = transactions.find((t) => t.id === id);
     setTransactions((prev) => {
-      const updated = prev.filter((t) => t.id !== id);
+      const updated = prev.filter((t) => t.id !== txId);
       saveLocalTransactions(updated, user.id);
+      if (isSupabaseConfigured()) {
+        deleteTransactionFromSupabase(txId, user.id).catch(() => {});
+      }
       return updated;
     });
+    showToast('Transaction removed', 'info');
+  }, [user]);
 
-    if (isSupabaseConfigured()) {
-      await deleteTransactionFromSupabase(id, target?.description);
-    }
-
-    showToast('Transaction deleted', 'info');
-  }, [user, transactions]);
-
-  // Pull latest data from Supabase on demand
   const handleRefreshFromSupabase = useCallback(async () => {
     if (!user) return;
     setIsSyncingCloud(true);
     try {
       const remote = await fetchRemoteUserData(user.id, user.email);
-      if (remote.transactions) {
-        setTransactions(remote.transactions);
-        saveLocalTransactions(remote.transactions, user.id);
-      }
       if (remote.habits) {
         setHabits(remote.habits);
         saveLocalHabits(remote.habits, user.id);
       }
-      showToast('Cloud synchronized successfully!', 'success');
+      if (remote.transactions) {
+        setTransactions(remote.transactions);
+        saveLocalTransactions(remote.transactions, user.id);
+      }
+      showToast('Cloud data synced successfully!');
     } catch (err: any) {
-      showToast(`Sync notice: ${err.message || 'Check connection'}`, 'error');
+      showToast(`Cloud sync notice: ${err.message || 'Offline fallback active'}`, 'info');
     } finally {
       setIsSyncingCloud(false);
     }
   }, [user]);
 
-  // Career Milestone Handlers
-  const handleToggleMilestone = useCallback((id: string) => {
-    setCareerMilestones((prev) =>
-      prev.map((m) => {
-        if (m.id !== id) return m;
-        const nextCompleted = !m.completed;
+  // List Handlers
+  const handleAddListItem = useCallback((itemData: Omit<ListItem, 'id' | 'createdAt'>) => {
+    if (!user) return;
+    const newItem: ListItem = {
+      ...itemData,
+      id: `list-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setListItems((prev) => {
+      const updated = [newItem, ...prev];
+      saveLocalListItems(updated, user.id);
+      return updated;
+    });
+    showToast('Checklist item added!');
+  }, [user]);
+
+  const handleToggleListItem = useCallback((id: string) => {
+    if (!user) return;
+    setListItems((prev) => {
+      const updated = prev.map((item) => {
+        if (item.id !== id) return item;
         return {
-          ...m,
-          completed: nextCompleted,
-          completedAt: nextCompleted ? new Date().toISOString().split('T')[0] : undefined,
+          ...item,
+          completed: !item.completed,
+          completedAt: !item.completed ? new Date().toISOString() : undefined,
         };
-      })
-    );
-    showToast('Career milestone updated');
-  }, []);
+      });
+      saveLocalListItems(updated, user.id);
+      return updated;
+    });
+    showToast('Item status updated');
+  }, [user]);
 
-  const handleIncrementMilestoneCount = useCallback((id: string) => {
-    setCareerMilestones((prev) =>
-      prev.map((m) => {
-        if (m.id !== id) return m;
-        const current = (m.currentCount || 0) + 1;
-        const target = m.targetCount || 1;
-        const isNowCompleted = current >= target;
+  const handleDeleteListItem = useCallback((id: string) => {
+    if (!user) return;
+    setListItems((prev) => {
+      const updated = prev.filter((item) => item.id !== id);
+      saveLocalListItems(updated, user.id);
+      return updated;
+    });
+    showToast('Item removed', 'info');
+  }, [user]);
+
+  // Planned Event Handlers
+  const handleAddEvent = useCallback((eventData: Omit<PlannedEvent, 'id' | 'createdAt'>) => {
+    if (!user) return;
+    const newEvent: PlannedEvent = {
+      ...eventData,
+      id: `event-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setPlannedEvents((prev) => {
+      const updated = [newEvent, ...prev];
+      saveLocalPlannedEvents(updated, user.id);
+      return updated;
+    });
+    showToast(`Event planned for ${newEvent.dayOfWeek}, ${newEvent.month}!`);
+  }, [user]);
+
+  const handleDeleteEvent = useCallback((id: string) => {
+    if (!user) return;
+    setPlannedEvents((prev) => {
+      const updated = prev.filter((e) => e.id !== id);
+      saveLocalPlannedEvents(updated, user.id);
+      return updated;
+    });
+    showToast('Event removed', 'info');
+  }, [user]);
+
+  const handleToggleEventStatus = useCallback((id: string) => {
+    if (!user) return;
+    setPlannedEvents((prev) => {
+      const updated = prev.map((e) => {
+        if (e.id !== id) return e;
         return {
-          ...m,
-          currentCount: current,
-          completed: isNowCompleted || m.completed,
-          completedAt: isNowCompleted ? new Date().toISOString().split('T')[0] : m.completedAt,
+          ...e,
+          status: (e.status === 'completed' ? 'upcoming' : 'completed') as PlannedEvent['status'],
         };
-      })
-    );
-    showToast('Progress incremented (+1)');
-  }, []);
-
-  // AI 5-Dimension Routine Evaluation Call
-  const handleRunEvaluation = async (userNotes?: string) => {
-    setIsEvaluating(true);
-    try {
-      const dims: LifeDimension[] = ['education', 'religion', 'health', 'social', 'career'];
-      const metrics: Record<string, number> = {};
-
-      dims.forEach((d) => {
-        const matching = habits.filter((h) => h.category === d);
-        if (matching.length === 0) {
-          metrics[d] = 50;
-        } else {
-          const done = matching.filter((h) => isHabitCompleted(h, selectedDate)).length;
-          metrics[d] = Math.round((done / matching.length) * 100);
-        }
       });
-
-      const totalIncome = transactions
-        .filter((t) => t.type === 'income')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
-      const totalExpenses = transactions
-        .filter((t) => t.type === 'expense')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
-      const totalSavings = transactions
-        .filter((t) => t.type === 'savings')
-        .reduce((sum, t) => sum + Number(t.amount), 0);
-
-      const payload = {
-        date: selectedDate,
-        habits: habits.map((h) => ({
-          title: h.title,
-          category: h.category,
-          completed: isHabitCompleted(h, selectedDate),
-          streak: h.streak,
-        })),
-        metrics,
-        financialSummary: {
-          totalIncome,
-          totalExpenses,
-          totalSavings,
-          savingsRate: totalIncome > 0 ? Math.round((totalSavings / totalIncome) * 100) : 0,
-        },
-        careerProgress: {
-          masteredCount: careerMilestones.filter((m) => m.completed).length,
-          totalMilestones: careerMilestones.length,
-        },
-        userNotes: userNotes || '',
-      };
-
-      const response = await fetch('/api/ai/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const resJson = await response.json();
-      if (resJson.success && resJson.data) {
-        const newEval: AIEvaluationResult = {
-          ...resJson.data,
-          id: `eval-${Date.now()}`,
-          date: selectedDate,
-          createdAt: new Date().toISOString(),
-        };
-
-        setEvaluations((prev) => ({
-          ...prev,
-          [selectedDate]: newEval,
-        }));
-        showToast('5D Life Judgement generated successfully!');
-      } else {
-        throw new Error(resJson.error || 'Evaluation endpoint error');
-      }
-    } catch (err: any) {
-      console.error('Evaluation error:', err);
-      showToast(`Evaluation notice: ${err.message || 'Check server logs'}`, 'info');
-    } finally {
-      setIsEvaluating(false);
-    }
-  };
+      saveLocalPlannedEvents(updated, user.id);
+      return updated;
+    });
+    showToast('Event status updated');
+  }, [user]);
 
   const handleLogout = async () => {
     await authSignOut();
@@ -590,13 +582,13 @@ export default function App() {
   // 1. Initial Authentication Check Loading State
   if (isAuthInitializing) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-emerald-400 flex items-center justify-center shadow-xl shadow-indigo-500/20 ring-1 ring-white/20">
+          <div className="w-12 h-12 rounded-xl bg-[#0F766E] flex items-center justify-center shadow-lg shadow-teal-900/10">
             <CheckCircle2 className="w-6 h-6 text-white" />
           </div>
-          <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold">
-            <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+          <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#0F766E]" />
             <span>Restoring secure session...</span>
           </div>
         </div>
@@ -616,19 +608,19 @@ export default function App() {
     );
   }
 
-  // 3. Authenticated User -> Main Life OS Application
+  // 3. Authenticated User -> Main Application
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col selection:bg-teal-100 selection:text-teal-900">
       {/* Toast Feedback */}
       {toast && (
         <div className="fixed bottom-5 right-5 z-50 animate-bounce-short">
-          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-900 border border-indigo-500/40 text-white shadow-xl shadow-black/60 text-xs font-semibold">
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-900 shadow-xl shadow-slate-200/50 text-xs font-semibold">
             {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-[#0F766E]" />
             ) : toast.type === 'error' ? (
-              <AlertCircle className="w-4 h-4 text-rose-400" />
+              <AlertCircle className="w-4 h-4 text-rose-600" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-indigo-400" />
+              <AlertCircle className="w-4 h-4 text-[#0F766E]" />
             )}
             <span>{toast.message}</span>
           </div>
@@ -651,12 +643,13 @@ export default function App() {
         onOpenTransactionModal={() => setIsTransactionModalOpen(true)}
         onOpenCoachModal={() => handleOpenCoachWithPrompt()}
         onOpenProfileModal={() => setIsProfileModalOpen(true)}
+        onOpenSideDrawer={() => setIsSideDrawerOpen(true)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
       />
 
       {/* Main Content Viewport */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 md:pb-8">
         {activeTab === 'habits' && (
           <HabitsTab
             habits={habits}
@@ -673,10 +666,7 @@ export default function App() {
               setEditingHabit(null);
               setIsHabitModalOpen(true);
             }}
-            onEvaluateDay={() => {
-              setActiveTab('ai-eval');
-              handleRunEvaluation();
-            }}
+            onOpenEventPlanner={() => setActiveTab('events')}
           />
         )}
 
@@ -690,27 +680,68 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'ai-eval' && (
-          <AIEvalTab
-            evaluation={evaluations[selectedDate] || null}
-            evaluationsHistory={evaluations}
-            selectedDate={selectedDate}
-            habits={habits}
-            onSelectDate={setSelectedDate}
-            onRunEvaluation={handleRunEvaluation}
-            isLoading={isEvaluating}
+        {activeTab === 'list' && (
+          <ListTab
+            items={listItems}
+            onAddItem={handleAddListItem}
+            onToggleItem={handleToggleListItem}
+            onDeleteItem={handleDeleteListItem}
           />
         )}
 
-        {activeTab === 'career' && (
-          <CareerTab
-            milestones={careerMilestones}
-            onToggleMilestone={handleToggleMilestone}
-            onIncrementCount={handleIncrementMilestoneCount}
-            onAskCoachAboutTopic={(topic) => handleOpenCoachWithPrompt(`How should I prepare for and master "${topic}"?`)}
+        {activeTab === 'events' && (
+          <EventPlannerTab
+            events={plannedEvents}
+            onAddEvent={handleAddEvent}
+            onDeleteEvent={handleDeleteEvent}
+            onToggleEventStatus={handleToggleEventStatus}
           />
         )}
       </main>
+
+      {/* Mobile Navigation Bar */}
+      <MobileNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenQuickAdd={() => setIsQuickActionOpen(true)}
+      />
+
+      {/* Quick Action Bottom Sheet / Modal */}
+      <QuickActionModal
+        isOpen={isQuickActionOpen}
+        onClose={() => setIsQuickActionOpen(false)}
+        onOpenHabitModal={() => {
+          setEditingHabit(null);
+          setIsHabitModalOpen(true);
+        }}
+        onOpenTransactionModal={() => setIsTransactionModalOpen(true)}
+        onOpenListTab={() => setActiveTab('list')}
+        onOpenEventsTab={() => setActiveTab('events')}
+        onOpenSideDrawer={() => setIsSideDrawerOpen(true)}
+      />
+
+      {/* 3-Bars Side Navigation Drawer */}
+      <SideDrawer
+        isOpen={isSideDrawerOpen}
+        onClose={() => setIsSideDrawerOpen(false)}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        user={user}
+        habits={habits}
+        transactions={transactions}
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+        notificationSettings={notificationSettings}
+        onLogout={handleLogout}
+        onOpenNotificationModal={() => setIsNotificationModalOpen(true)}
+        onOpenHabitModal={() => {
+          setEditingHabit(null);
+          setIsHabitModalOpen(true);
+        }}
+        onOpenTransactionModal={() => setIsTransactionModalOpen(true)}
+        onOpenCoachModal={() => handleOpenCoachWithPrompt()}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
+      />
 
       {/* Modals */}
       <HabitModal

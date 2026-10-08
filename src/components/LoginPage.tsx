@@ -13,11 +13,11 @@ import {
   Eye, 
   EyeOff,
   AlertCircle,
-  RefreshCw,
-  X
+  RefreshCw
 } from 'lucide-react';
 import { AuthUser } from '../types';
 import { signIn, signUp, signInWithGoogle } from '../lib/auth';
+import { BrandLogo } from './BrandLogo';
 
 interface LoginPageProps {
   onAuthSuccess: (user: AuthUser) => void;
@@ -101,100 +101,99 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 selection:bg-indigo-500 selection:text-white relative overflow-hidden">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 selection:bg-teal-100 selection:text-teal-900 relative overflow-hidden">
       {/* Background ambient lighting */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-tr from-indigo-600/20 via-emerald-600/10 to-transparent rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-tr from-teal-500/10 via-emerald-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-10 w-96 h-96 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Main Container */}
       <div className="w-full max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
         
         {/* Left Column: Branding, Value Prop & Live Features */}
         <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
-          {/* Logo & Category Badge */}
-          <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>HabitPulse SaaS • Life Operating System</span>
+          {/* Aesthetic Brand Logo */}
+          <div className="flex justify-center lg:justify-start">
+            <BrandLogo size="lg" />
           </div>
 
           <div className="space-y-3">
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-tight">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
               Master Your Routines, Wealth, &amp; Career
             </h1>
-            <p className="text-slate-400 text-sm sm:text-base max-w-xl mx-auto lg:mx-0 leading-relaxed">
+            <p className="text-slate-600 text-sm sm:text-base max-w-xl mx-auto lg:mx-0 leading-relaxed">
               Your private Life OS powered by integrated cloud persistence. Track daily habits, manage personal finances, get 5D AI life evaluations, and level up your software engineering progression.
             </p>
           </div>
 
           {/* Core Feature Pillars */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center flex-shrink-0">
+            <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 border border-amber-200/60 flex items-center justify-center flex-shrink-0">
                 <Flame className="w-4 h-4" />
               </div>
               <div className="text-left">
-                <p className="text-xs font-bold text-white">Daily Routines &amp; Streaks</p>
-                <p className="text-[11px] text-slate-400">Consistency heatmaps, streak math, &amp; reminders</p>
+                <p className="text-xs font-bold text-slate-900">Daily Routines &amp; Streaks</p>
+                <p className="text-[11px] text-slate-500">Consistency heatmaps, streak math, &amp; reminders</p>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center flex-shrink-0">
+            <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-teal-50 text-[#0F766E] border border-teal-200/60 flex items-center justify-center flex-shrink-0">
                 <Wallet className="w-4 h-4" />
               </div>
               <div className="text-left">
-                <p className="text-xs font-bold text-white">Money &amp; Cashflow Ledger</p>
-                <p className="text-[11px] text-slate-400">Real-time income, expenses, &amp; savings targets</p>
+                <p className="text-xs font-bold text-slate-900">Money &amp; Cashflow Ledger</p>
+                <p className="text-[11px] text-slate-500">Real-time income, expenses, &amp; savings targets</p>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center flex-shrink-0">
+            <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-teal-50 text-[#0F766E] border border-teal-200/60 flex items-center justify-center flex-shrink-0">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div className="text-left">
-                <p className="text-xs font-bold text-white">5D AI Life Evaluation</p>
-                <p className="text-[11px] text-slate-400">Education, Health, Religion, Social, &amp; Career</p>
+                <p className="text-xs font-bold text-slate-900">5D AI Life Evaluation</p>
+                <p className="text-[11px] text-slate-500">Education, Health, Religion, Social, &amp; Career</p>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center flex-shrink-0">
+            <div className="p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center flex-shrink-0">
                 <Code2 className="w-4 h-4" />
               </div>
               <div className="text-left">
-                <p className="text-xs font-bold text-white">SWE Engineering Mastery</p>
-                <p className="text-[11px] text-slate-400">DSA, System Design, Cloud, &amp; Full-Stack</p>
+                <p className="text-xs font-bold text-slate-900">SWE Engineering Mastery</p>
+                <p className="text-[11px] text-slate-500">DSA, System Design, Cloud, &amp; Full-Stack</p>
               </div>
             </div>
           </div>
 
           {/* Cloud Security Indicator */}
-          <div className="flex items-center justify-center lg:justify-start gap-2 text-xs text-slate-400 pt-1">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <div className="flex items-center justify-center lg:justify-start gap-2 text-xs text-slate-500 pt-1">
+            <ShieldCheck className="w-4 h-4 text-[#0F766E]" />
             <span>Integrated Cloud Database • Persistent &amp; Secure Session</span>
           </div>
         </div>
 
         {/* Right Column: Authentication Card */}
         <div className="lg:col-span-5 w-full">
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl space-y-6">
+          <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
             
             {/* Form Title & Switcher */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-white tracking-tight">
+                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">
                     {mode === 'signup' ? 'Create Your Account' : 'Welcome Back'}
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     {mode === 'signup' ? 'Sign up to start tracking your life operating system' : 'Sign in to access your habits, wealth, and progression'}
                   </p>
                 </div>
               </div>
 
               {/* Tab Toggle */}
-              <div className="grid grid-cols-2 p-1 bg-slate-950 rounded-2xl border border-slate-800 text-xs font-bold">
+              <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold">
                 <button
                   type="button"
                   id="tab-btn-signin"
@@ -204,8 +203,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
                   }}
                   className={`py-2 rounded-xl transition-all cursor-pointer ${
                     mode === 'signin'
-                      ? 'bg-indigo-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
                   Sign In
@@ -219,8 +218,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
                   }}
                   className={`py-2 rounded-xl transition-all cursor-pointer ${
                     mode === 'signup'
-                      ? 'bg-indigo-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
                   Create Account
@@ -235,10 +234,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
                 id="google-signin-btn"
                 onClick={handleGoogleClick}
                 disabled={isGoogleLoading || isLoading}
-                className="w-full py-3 px-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs flex items-center justify-center gap-3 transition-all shadow-md hover:shadow-lg disabled:opacity-60 cursor-pointer"
+                className="w-full py-3 px-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-3 transition-all shadow-xs hover:shadow-sm disabled:opacity-60 cursor-pointer active:scale-98"
               >
                 {isGoogleLoading ? (
-                  <RefreshCw className="w-4 h-4 animate-spin text-slate-700" />
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-600" />
                 ) : (
                   <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
                     <path
@@ -266,25 +265,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
 
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-800" />
+                  <div className="w-full border-t border-slate-200" />
                 </div>
                 <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
-                  <span className="bg-slate-900 px-3 text-slate-400">Or continue with email</span>
+                  <span className="bg-white px-3 text-slate-400">Or continue with email</span>
                 </div>
               </div>
             </div>
 
             {/* Error & Success Alerts */}
             {errorMessage && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600" />
                 <span>{errorMessage}</span>
               </div>
             )}
 
             {successMessage && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400" />
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-600" />
                 <span>{successMessage}</span>
               </div>
             )}
@@ -293,11 +292,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
             <form onSubmit={handleSubmit} className="space-y-3.5">
               {mode === 'signup' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Full Name
                   </label>
                   <div className="relative">
-                    <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                     <input
                       id="auth-name-input"
                       type="text"
@@ -305,18 +304,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       required={mode === 'signup'}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#0F766E] transition-all"
                     />
                   </div>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
                     id="auth-email-input"
                     type="email"
@@ -324,17 +323,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#0F766E] transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
                     id="auth-password-input"
                     type={showPassword ? 'text' : 'password'}
@@ -343,12 +342,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors font-mono"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#0F766E] transition-all font-mono"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 cursor-pointer"
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -362,7 +361,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
                 type="submit"
                 id="auth-submit-btn"
                 disabled={isLoading || isGoogleLoading}
-                className="w-full py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/25 disabled:opacity-60 cursor-pointer"
+                className="w-full py-3 px-4 rounded-2xl bg-[#0F766E] hover:bg-[#0D655E] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs disabled:opacity-60 cursor-pointer active:scale-98"
               >
                 {isLoading ? (
                   <RefreshCw className="w-4 h-4 animate-spin text-white" />
@@ -376,13 +375,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
             </form>
 
             {/* Persistent Login Notice & Quick Demo Fill */}
-            <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+            <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
               <span>🔒 Automatically kept signed in</span>
               <button
                 type="button"
                 id="quick-demo-fill-btn"
                 onClick={handleFillDemo}
-                className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                className="text-[#0F766E] hover:underline font-semibold cursor-pointer"
               >
                 Try Demo Account
               </button>

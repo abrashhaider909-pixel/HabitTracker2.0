@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="emeraldGrad512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F766E"/>
+      <stop offset="50%" stop-color="#115E59"/>
+      <stop offset="100%" stop-color="#042F2E"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#emeraldGrad512)"/>
+  <!-- Pulse Horizon Wave -->
+  <path d="M70 256 H140 C156 256 166 230 176 198 L202 112 C210 85 232 85 240 112 L282 400 C290 427 312 427 320 400 L352 182 C360 155 382 155 390 182 L410 256 H442" stroke="#ffffff" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Specular dots -->
+  <circle cx="221" cy="98" r="24" fill="#2DD4BF"/>
+  <circle cx="371" cy="168" r="18" fill="#ffffff"/>
+</svg>

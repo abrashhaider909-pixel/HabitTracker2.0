@@ -1,5 +1,14 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Habit, Transaction, CareerMilestone, AIEvaluationResult, SupabaseConfig, TransactionType } from '../types';
+import { 
+  Habit, 
+  Transaction, 
+  CareerMilestone, 
+  AIEvaluationResult, 
+  SupabaseConfig, 
+  TransactionType,
+  ListItem,
+  PlannedEvent
+} from '../types';
 
 const STORAGE_KEY_HABITS = 'habitpulse_habits_v1';
 const STORAGE_KEY_TRANSACTIONS = 'habitpulse_transactions_v1';
@@ -229,6 +238,136 @@ export function saveLocalEvaluations(evaluations: Record<string, AIEvaluationRes
     const key = getScopedKey(STORAGE_KEY_EVALUATIONS, userId);
     localStorage.setItem(key, JSON.stringify(evaluations));
     localStorage.setItem(STORAGE_KEY_EVALUATIONS, JSON.stringify(evaluations));
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+export const STORAGE_KEY_LIST_ITEMS = 'habitpulse_list_items_v1';
+export const STORAGE_KEY_PLANNED_EVENTS = 'habitpulse_planned_events_v1';
+
+export function getLocalListItems(fallback: ListItem[] = [], userId?: string): ListItem[] {
+  try {
+    const defaultInitialList: ListItem[] = [
+      {
+        id: 'list-1',
+        title: 'Review weekly routines & schedule',
+        description: 'Check consistency and adjust time targets',
+        completed: true,
+        priority: 'high',
+        category: 'Personal',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'list-2',
+        title: 'Complete daily hydration and morning workout',
+        description: 'Drink 2L water and complete 30min workout',
+        completed: false,
+        priority: 'medium',
+        category: 'Health',
+        dueDate: new Date().toISOString().split('T')[0],
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'list-3',
+        title: 'Organize project deliverables and tasks',
+        description: 'Prepare notes for upcoming milestone review',
+        completed: false,
+        priority: 'high',
+        category: 'Work',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    if (userId) {
+      const key = getScopedKey(STORAGE_KEY_LIST_ITEMS, userId);
+      const data = localStorage.getItem(key);
+      if (data !== null) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) return parsed;
+      }
+      return defaultInitialList;
+    }
+    const base = localStorage.getItem(STORAGE_KEY_LIST_ITEMS);
+    if (base) return JSON.parse(base);
+    return defaultInitialList;
+  } catch (e) {
+    console.error('Failed to get local list items:', e);
+    return fallback;
+  }
+}
+
+export function saveLocalListItems(items: ListItem[], userId?: string): void {
+  try {
+    if (userId) {
+      const key = getScopedKey(STORAGE_KEY_LIST_ITEMS, userId);
+      localStorage.setItem(key, JSON.stringify(items));
+    }
+    localStorage.setItem(STORAGE_KEY_LIST_ITEMS, JSON.stringify(items));
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+export function getLocalPlannedEvents(fallback: PlannedEvent[] = [], userId?: string): PlannedEvent[] {
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const defaultInitialEvents: PlannedEvent[] = [
+      {
+        id: 'event-1',
+        title: 'Weekly Sprint & Habit Alignment',
+        description: 'Review habit consistency metrics and personal achievements',
+        date: todayStr,
+        dayOfWeek: 'Today',
+        month: 'Current Month',
+        time: '14:00',
+        category: 'work',
+        enableNotification: true,
+        reminders: [{ id: 'rem-1', minutesBefore: 15, label: '15 minutes before', sent: false }],
+        status: 'upcoming',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'event-2',
+        title: 'Team Sync & Milestone Celebration',
+        description: 'Celebrate completed goals and plan next quarter routines',
+        date: todayStr,
+        dayOfWeek: 'Today',
+        month: 'Current Month',
+        time: '18:30',
+        category: 'celebration',
+        enableNotification: true,
+        reminders: [{ id: 'rem-2', minutesBefore: 30, label: '30 minutes before', sent: false }],
+        status: 'upcoming',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    if (userId) {
+      const key = getScopedKey(STORAGE_KEY_PLANNED_EVENTS, userId);
+      const data = localStorage.getItem(key);
+      if (data !== null) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) return parsed;
+      }
+      return defaultInitialEvents;
+    }
+    const base = localStorage.getItem(STORAGE_KEY_PLANNED_EVENTS);
+    if (base) return JSON.parse(base);
+    return defaultInitialEvents;
+  } catch (e) {
+    console.error('Failed to get local planned events:', e);
+    return fallback;
+  }
+}
+
+export function saveLocalPlannedEvents(events: PlannedEvent[], userId?: string): void {
+  try {
+    if (userId) {
+      const key = getScopedKey(STORAGE_KEY_PLANNED_EVENTS, userId);
+      localStorage.setItem(key, JSON.stringify(events));
+    }
+    localStorage.setItem(STORAGE_KEY_PLANNED_EVENTS, JSON.stringify(events));
   } catch (e) {
     console.error(e);
   }

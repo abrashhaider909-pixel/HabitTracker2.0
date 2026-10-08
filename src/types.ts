@@ -92,6 +92,41 @@ export interface NotificationSettings {
   lastNotifiedAt?: string;
 }
 
+export interface EventReminder {
+  id: string;
+  minutesBefore: number; // e.g. 0 (at time of event), 15, 30, 60 (1 hour), 1440 (1 day before)
+  label: string;
+  sent?: boolean;
+}
+
+export interface PlannedEvent {
+  id: string;
+  title: string;
+  description?: string;
+  date: string; // YYYY-MM-DD
+  dayOfWeek: string; // e.g. 'Monday', 'Tuesday'
+  month: string; // e.g. 'October 2026' or 'October'
+  time?: string; // HH:mm e.g. '14:30'
+  category: 'work' | 'personal' | 'health' | 'celebration' | 'reminder';
+  reminders: EventReminder[];
+  enableNotification: boolean;
+  status: 'upcoming' | 'completed' | 'cancelled';
+  createdAt: string;
+}
+
+export interface ListItem {
+  id: string;
+  title: string;
+  description?: string;
+  completed: boolean;
+  dueDate?: string; // YYYY-MM-DD
+  priority: 'low' | 'medium' | 'high';
+  category: string;
+  tags?: string[];
+  createdAt: string;
+  completedAt?: string;
+}
+
 export interface AuthUser {
   id: string;
   email: string;

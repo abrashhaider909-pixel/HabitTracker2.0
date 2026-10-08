@@ -44,25 +44,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150">
       <div 
-        className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden"
+        className="w-full max-w-md bg-white border border-slate-200/90 rounded-2xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200/80 bg-slate-50/70">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center border border-indigo-500/20">
+            <div className="w-8 h-8 rounded-xl bg-teal-50 text-[#0F766E] border border-teal-200/60 flex items-center justify-center">
               <User className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">User Profile</h3>
-              <p className="text-[11px] text-slate-400">Personalize your name and avatar picture</p>
+              <h3 className="text-sm font-bold text-slate-900">User Profile</h3>
+              <p className="text-[11px] text-slate-500">Personalize your name and avatar picture</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -72,32 +72,32 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {/* Avatar Preview */}
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-inner">
+            <div className="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-xs">
               {photoUrl ? (
                 <img src={photoUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-xl font-black text-indigo-400 uppercase">
+                <span className="text-xl font-black text-[#0F766E] uppercase">
                   {(displayName || user.email || 'U')[0]}
                 </span>
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-xs font-semibold text-white block truncate">
+              <span className="text-xs font-bold text-slate-900 block truncate">
                 {displayName || 'Unnamed User'}
               </span>
-              <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-                <Mail className="w-3 h-3 text-slate-500" />
+              <span className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+                <Mail className="w-3 h-3 text-slate-400" />
                 {user.email}
               </span>
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 mt-1">
-                <ShieldCheck className="w-3 h-3" /> Private Workspace
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 mt-1">
+                <ShieldCheck className="w-3 h-3 text-emerald-600" /> Private Cloud Workspace
               </span>
             </div>
           </div>
 
           {/* Display Name Input */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Display Name
             </label>
             <input
@@ -105,31 +105,31 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Your preferred name or moniker"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#0F766E] transition-all"
               required
             />
           </div>
 
           {/* Profile Picture URL */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Profile Picture URL
             </label>
             <div className="relative">
-              <Image className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-3" />
+              <Image className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
               <input
                 type="url"
                 value={photoUrl}
                 onChange={(e) => setPhotoUrl(e.target.value)}
                 placeholder="https://example.com/avatar.jpg"
-                className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-[#0F766E] transition-all"
               />
             </div>
           </div>
 
           {/* Preset Avatars Selection */}
           <div>
-            <label className="block text-[11px] font-medium text-slate-400 mb-2">
+            <label className="block text-[11px] font-medium text-slate-500 mb-2">
               Or choose from preset avatars:
             </label>
             <div className="flex items-center gap-2.5 overflow-x-auto pb-1">
@@ -139,7 +139,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   type="button"
                   onClick={() => setPhotoUrl(url)}
                   className={`w-9 h-9 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 cursor-pointer ${
-                    photoUrl === url ? 'border-indigo-500 ring-2 ring-indigo-500/30' : 'border-slate-800 hover:border-slate-600'
+                    photoUrl === url ? 'border-[#0F766E] ring-2 ring-teal-200' : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
                   <img src={url} alt={`Preset ${index}`} className="w-full h-full object-cover" />
@@ -153,17 +153,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-800 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-md shadow-indigo-600/30 flex items-center gap-1.5"
+              className="px-5 py-2 rounded-xl text-xs font-bold bg-[#0F766E] hover:bg-[#0D655E] text-white transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-98"
             >
               {isSaved ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-300" />
+                  <Check className="w-3.5 h-3.5 text-white" />
                   <span>Saved!</span>
                 </>
               ) : (
